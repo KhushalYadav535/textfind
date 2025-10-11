@@ -9,6 +9,9 @@ import Results from './Pages/Results'
 import History from './Pages/History'
 import Dashboard from './components/dashboard/Dashboard'
 import ApiDocumentation from './components/api/ApiDocumentation'
+import AdminPanel from './components/admin/AdminPanel'
+import WebhookManager from './components/api/WebhookManager'
+import ExportManager from './components/export/ExportManager'
 import './App.css'
 
 const queryClient = new QueryClient()
@@ -25,6 +28,9 @@ function App() {
             <Route path="/results" element={<Results />} />
             <Route path="/history" element={<History />} />
             <Route path="/api-docs" element={<ApiDocumentation />} />
+            <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/webhooks" element={<WebhookManager />} />
+            <Route path="/export" element={<ExportManager documentData={{}} />} />
           </Routes>
         </Layout>
         <Toaster

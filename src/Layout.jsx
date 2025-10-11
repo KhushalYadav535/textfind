@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "./utils";
-import { Sparkles, Upload, History, User, LogOut, Settings, CreditCard, Bell, Search, Code } from "lucide-react";
+import { Sparkles, Upload, History, User, LogOut, Settings, CreditCard, Bell, Search, Code, Shield, Webhook } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "./store/authStore";
 import { useUserStore } from "./store/userStore";
@@ -145,6 +145,18 @@ export default function Layout({ children, currentPageName }) {
                             <Settings className="w-4 h-4" />
                             Preferences
                           </button>
+                          <Link to="/admin">
+                            <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors">
+                              <Shield className="w-4 h-4" />
+                              Admin Panel
+                            </button>
+                          </Link>
+                          <Link to="/webhooks">
+                            <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors">
+                              <Webhook className="w-4 h-4" />
+                              Webhooks
+                            </button>
+                          </Link>
                           <hr className="my-2 border-white/10" />
                           <button
                             onClick={handleSignOut}
