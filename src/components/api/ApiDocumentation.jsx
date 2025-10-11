@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Code, Copy, Check, Terminal, Key, Globe, Zap, FileText, Download } from 'lucide-react'
+import { Code, Copy, Check, Terminal, Key, Globe, Zap, FileText, Download, TestTube, Play, BookOpen, Shield, TrendingUp } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function ApiDocumentation() {
@@ -9,86 +9,148 @@ export default function ApiDocumentation() {
   const [activeLanguage, setActiveLanguage] = useState('javascript')
 
   const codeSnippets = {
-    curl: `curl -X POST https://api.textvision.ai/v1/ocr \\
+    curl: `# Basic OCR Request
+curl -X POST https://api.textvision.ai/v1/ocr \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "image_url": "https://example.com/image.jpg",
+    "image_url": "https://example.com/document.jpg",
     "languages": ["eng", "hin"],
     "options": {
       "confidence_threshold": 80,
       "preprocessing": true,
-      "batch_mode": false
+      "output_format": "structured",
+      "include_metadata": true
+    }
+  }'
+
+# Batch Processing
+curl -X POST https://api.textvision.ai/v1/batch \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "images": [
+      {"url": "https://example.com/doc1.jpg"},
+      {"url": "https://example.com/doc2.pdf"}
+    ],
+    "languages": ["eng"],
+    "options": {
+      "confidence_threshold": 85,
+      "parallel_processing": true
     }
   }'`,
 
-    javascript: `const response = await fetch('https://api.textvision.ai/v1/ocr', {
-  method: 'POST',
-  headers: {
-    'Authorization': 'Bearer YOUR_API_KEY',
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    image_url: 'https://example.com/image.jpg',
-    languages: ['eng', 'hin'],
-    options: {
-      confidence_threshold: 80,
-      preprocessing: true,
-      batch_mode: false
-    }
-  })
+    javascript: `// Using our official JavaScript SDK
+import { TextVisionAPI } from 'textvision-js';
+
+const client = new TextVisionAPI('YOUR_API_KEY');
+
+// Basic OCR
+const result = await client.extractText({
+  image_url: 'https://example.com/document.jpg',
+  languages: ['eng', 'hin'],
+  options: {
+    confidence_threshold: 80,
+    preprocessing: true,
+    output_format: 'structured'
+  }
 });
 
-const result = await response.json();
-console.log(result.extracted_text);`,
+console.log('Extracted Text:', result.extracted_text);
+console.log('Confidence:', result.confidence);
 
-    python: `import requests
-
-url = "https://api.textvision.ai/v1/ocr"
-headers = {
-    "Authorization": "Bearer YOUR_API_KEY",
-    "Content-Type": "application/json"
-}
-data = {
-    "image_url": "https://example.com/image.jpg",
-    "languages": ["eng", "hin"],
-    "options": {
-        "confidence_threshold": 80,
-        "preprocessing": True,
-        "batch_mode": False
-    }
-}
-
-response = requests.post(url, headers=headers, json=data)
-result = response.json()
-print(result['extracted_text'])`,
-
-    nodejs: `const axios = require('axios');
-
-const options = {
-  method: 'POST',
-  url: 'https://api.textvision.ai/v1/ocr',
-  headers: {
-    'Authorization': 'Bearer YOUR_API_KEY',
-    'Content-Type': 'application/json'
-  },
-  data: {
-    image_url: 'https://example.com/image.jpg',
-    languages: ['eng', 'hin'],
-    options: {
-      confidence_threshold: 80,
-      preprocessing: true,
-      batch_mode: false
-    }
+// Batch Processing
+const batchResult = await client.batchProcess({
+  images: [
+    'https://example.com/doc1.jpg',
+    'https://example.com/doc2.pdf'
+  ],
+  languages: ['eng'],
+  options: {
+    confidence_threshold: 85
   }
-};
+});
 
-try {
-  const response = await axios.request(options);
-  console.log(response.data.extracted_text);
-} catch (error) {
-  console.error(error);
-}`
+// File Upload
+const fileInput = document.getElementById('fileInput');
+const file = fileInput.files[0];
+const uploadResult = await client.uploadAndProcess(file, ['eng'], {
+  confidence_threshold: 90
+});`,
+
+    python: `# Using our official Python SDK
+from textvision import TextVisionAPI
+
+client = TextVisionAPI(api_key='YOUR_API_KEY')
+
+# Basic OCR
+result = client.extract_text(
+    image_url='https://example.com/document.jpg',
+    languages=['eng', 'hin'],
+    options={
+        'confidence_threshold': 80,
+        'preprocessing': True,
+        'output_format': 'structured'
+    }
+)
+
+print(f"Extracted Text: {result.extracted_text}")
+print(f"Confidence: {result.confidence}%")
+
+# Batch Processing
+batch_result = client.batch_process(
+    images=[
+        'https://example.com/doc1.jpg',
+        'https://example.com/doc2.pdf'
+    ],
+    languages=['eng'],
+    options={'confidence_threshold': 85}
+)
+
+# File Upload
+with open('document.pdf', 'rb') as file:
+    upload_result = client.upload_and_process(
+        file, 
+        languages=['eng'], 
+        options={'confidence_threshold': 90}
+    )`,
+
+    php: `<?php
+// Using our official PHP SDK
+use TextVision\\TextVisionAPI;
+
+$client = new TextVisionAPI('YOUR_API_KEY');
+
+// Basic OCR
+$result = $client->extractText([
+    'image_url' => 'https://example.com/document.jpg',
+    'languages' => ['eng', 'hin'],
+    'options' => [
+        'confidence_threshold' => 80,
+        'preprocessing' => true,
+        'output_format' => 'structured'
+    ]
+]);
+
+echo "Extracted Text: " . $result['extracted_text'] . PHP_EOL;
+echo "Confidence: " . $result['confidence'] . "%" . PHP_EOL;
+
+// Batch Processing
+$batchResult = $client->batchProcess([
+    'images' => [
+        'https://example.com/doc1.jpg',
+        'https://example.com/doc2.pdf'
+    ],
+    'languages' => ['eng'],
+    'options' => ['confidence_threshold' => 85]
+]);
+
+// File Upload
+$file = file_get_contents('document.pdf');
+$uploadResult = $client->uploadAndProcess($file, ['eng'], [
+    'confidence_threshold' => 90
+]);
+?>`
   }
 
   const copyToClipboard = (code, key) => {
@@ -184,16 +246,54 @@ try {
                   isActive={activeTab === 'examples'}
                   onClick={() => setActiveTab('examples')}
                 />
+                <TabButton
+                  id="playground"
+                  label="API Playground"
+                  icon={<Play className="w-4 h-4" />}
+                  isActive={activeTab === 'playground'}
+                  onClick={() => setActiveTab('playground')}
+                />
+                <TabButton
+                  id="guides"
+                  label="Guides"
+                  icon={<BookOpen className="w-4 h-4" />}
+                  isActive={activeTab === 'guides'}
+                  onClick={() => setActiveTab('guides')}
+                />
               </div>
             </div>
 
             <div className="p-6 rounded-2xl bg-slate-800/30 border border-white/10 backdrop-blur-sm">
               <h3 className="text-lg font-bold text-white mb-4">API Status</h3>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                <span className="text-green-400 text-sm">All systems operational</span>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                  <span className="text-green-400 text-sm">All systems operational</span>
+                </div>
+                <div className="text-xs text-slate-400 space-y-1">
+                  <div>Uptime: 99.9%</div>
+                  <div>Response Time: 1.2s avg</div>
+                  <div>Last Updated: 2 min ago</div>
+                </div>
               </div>
-              <p className="text-slate-400 text-xs mt-2">99.9% uptime</p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-slate-800/30 border border-white/10 backdrop-blur-sm">
+              <h3 className="text-lg font-bold text-white mb-4">Rate Limits</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Free Plan</span>
+                  <span className="text-white">100 req/day</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Pro Plan</span>
+                  <span className="text-white">10,000 req/day</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Enterprise</span>
+                  <span className="text-white">Unlimited</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -442,6 +542,221 @@ try {
                         <div className="text-slate-400 text-sm">composer require textvision/php</div>
                       </div>
                     </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* API Playground */}
+            {activeTab === 'playground' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-8"
+              >
+                <div className="p-8 rounded-3xl bg-slate-800/30 border border-white/10 backdrop-blur-sm">
+                  <h2 className="text-3xl font-bold text-white mb-6 flex items-center gap-3">
+                    <TestTube className="w-8 h-8 text-cyan-400" />
+                    API Playground
+                  </h2>
+                  
+                  <div className="grid lg:grid-cols-2 gap-8">
+                    {/* Request Builder */}
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-4">Request Builder</h3>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-white font-medium mb-2">API Key</label>
+                          <input
+                            type="password"
+                            placeholder="Enter your API key"
+                            className="w-full px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-white font-medium mb-2">Image URL</label>
+                          <input
+                            type="url"
+                            placeholder="https://example.com/document.jpg"
+                            className="w-full px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-white font-medium mb-2">Languages</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="flex items-center gap-2">
+                              <input type="checkbox" className="text-cyan-500" defaultChecked />
+                              <span className="text-slate-300 text-sm">English</span>
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <input type="checkbox" className="text-cyan-500" />
+                              <span className="text-slate-300 text-sm">Hindi</span>
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <input type="checkbox" className="text-cyan-500" />
+                              <span className="text-slate-300 text-sm">Spanish</span>
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <input type="checkbox" className="text-cyan-500" />
+                              <span className="text-slate-300 text-sm">French</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-white font-medium mb-2">Options</label>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-300">Confidence Threshold</span>
+                              <span className="text-white font-medium">80%</span>
+                            </div>
+                            <input type="range" min="0" max="100" defaultValue="80" className="w-full" />
+                            
+                            <label className="flex items-center gap-3">
+                              <input type="checkbox" defaultChecked className="text-cyan-500" />
+                              <span className="text-slate-300">Enable Preprocessing</span>
+                            </label>
+                            
+                            <label className="flex items-center gap-3">
+                              <input type="checkbox" className="text-cyan-500" />
+                              <span className="text-slate-300">Include Metadata</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        <button className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-amber-500 rounded-xl text-white font-semibold hover:scale-105 transition-transform">
+                          <Play className="w-5 h-5 inline mr-2" />
+                          Test API Call
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Response */}
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-4">Response</h3>
+                      <div className="bg-slate-900 p-6 rounded-xl border border-white/10">
+                        <pre className="text-sm text-slate-300 overflow-x-auto">
+{`{
+  "success": true,
+  "extracted_text": "Sample extracted text from your document...",
+  "confidence": 95.5,
+  "language_detected": "eng",
+  "processing_time": 1.2,
+  "metadata": {
+    "image_size": "1920x1080",
+    "text_regions": 5,
+    "characters_detected": 142
+  },
+  "request_id": "req_abc123def456"
+}`}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Guides */}
+            {activeTab === 'guides' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-8"
+              >
+                <div className="p-8 rounded-3xl bg-slate-800/30 border border-white/10 backdrop-blur-sm">
+                  <h2 className="text-3xl font-bold text-white mb-6 flex items-center gap-3">
+                    <BookOpen className="w-8 h-8 text-cyan-400" />
+                    Integration Guides
+                  </h2>
+                  
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="p-6 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-amber-500/10 border border-white/10">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600">
+                          <Globe className="w-6 h-6 text-white" />
+                        </div>
+                        <h3 className="text-xl font-bold text-white">Web Integration</h3>
+                      </div>
+                      <p className="text-slate-300 mb-4">
+                        Learn how to integrate TextVision API into your web applications using JavaScript, React, or any frontend framework.
+                      </p>
+                      <div className="space-y-2 text-sm">
+                        <div className="text-slate-400">• React Integration</div>
+                        <div className="text-slate-400">• Vue.js Setup</div>
+                        <div className="text-slate-400">• Angular Implementation</div>
+                        <div className="text-slate-400">• Vanilla JavaScript</div>
+                      </div>
+                      <button className="mt-4 px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded-xl text-cyan-400 text-sm transition-colors">
+                        Read Guide
+                      </button>
+                    </div>
+
+                    <div className="p-6 rounded-2xl bg-gradient-to-br from-amber-500/10 to-purple-500/10 border border-white/10">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600">
+                          <Shield className="w-6 h-6 text-white" />
+                        </div>
+                        <h3 className="text-xl font-bold text-white">Backend Integration</h3>
+                      </div>
+                      <p className="text-slate-300 mb-4">
+                        Integrate TextVision API into your backend services using Python, Node.js, PHP, or other server-side technologies.
+                      </p>
+                      <div className="space-y-2 text-sm">
+                        <div className="text-slate-400">• Python Flask/Django</div>
+                        <div className="text-slate-400">• Node.js Express</div>
+                        <div className="text-slate-400">• PHP Laravel</div>
+                        <div className="text-slate-400">• Ruby on Rails</div>
+                      </div>
+                      <button className="mt-4 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-xl text-amber-400 text-sm transition-colors">
+                        Read Guide
+                      </button>
+                    </div>
+
+                    <div className="p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-green-500/10 border border-white/10">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600">
+                          <TrendingUp className="w-6 h-6 text-white" />
+                        </div>
+                        <h3 className="text-xl font-bold text-white">Mobile Apps</h3>
+                      </div>
+                      <p className="text-slate-300 mb-4">
+                        Build mobile applications with OCR capabilities using our SDKs for iOS, Android, React Native, and Flutter.
+                      </p>
+                      <div className="space-y-2 text-sm">
+                        <div className="text-slate-400">• iOS Swift/Objective-C</div>
+                        <div className="text-slate-400">• Android Kotlin/Java</div>
+                        <div className="text-slate-400">• React Native</div>
+                        <div className="text-slate-400">• Flutter</div>
+                      </div>
+                      <button className="mt-4 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl text-purple-400 text-sm transition-colors">
+                        Read Guide
+                      </button>
+                    </div>
+
+                    <div className="p-6 rounded-2xl bg-gradient-to-br from-green-500/10 to-cyan-500/10 border border-white/10">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-green-500 to-green-600">
+                          <Zap className="w-6 h-6 text-white" />
+                        </div>
+                        <h3 className="text-xl font-bold text-white">Advanced Usage</h3>
+                      </div>
+                      <p className="text-slate-300 mb-4">
+                        Learn advanced features like batch processing, webhooks, custom models, and performance optimization.
+                      </p>
+                      <div className="space-y-2 text-sm">
+                        <div className="text-slate-400">• Batch Processing</div>
+                        <div className="text-slate-400">• Webhook Integration</div>
+                        <div className="text-slate-400">• Custom Models</div>
+                        <div className="text-slate-400">• Performance Tips</div>
+                      </div>
+                      <button className="mt-4 px-4 py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl text-green-400 text-sm transition-colors">
+                        Read Guide
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>
