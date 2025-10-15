@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { useAnalyticsStore } from '../../store/analyticsStore'
 import { 
   Users, 
   FileText, 
@@ -25,6 +26,19 @@ import {
 } from 'lucide-react'
 
 export default function AdminPanel() {
+  const { 
+    totalVisitors, 
+    todayVisitors, 
+    weeklyVisitors, 
+    monthlyVisitors,
+    totalPageViews,
+    onlineUsers,
+    topCountries,
+    deviceStats,
+    browserStats,
+    trafficSources,
+    reset: resetAnalytics
+  } = useAnalyticsStore()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [users, setUsers] = useState([
     { id: 1, name: 'John Doe', email: 'john@example.com', plan: 'Pro', status: 'active', signupDate: '2024-01-15', uploads: 245, lastActive: '2 hours ago' },
@@ -147,9 +161,9 @@ export default function AdminPanel() {
           </div>
 
           <div className="space-y-2">
-            <TabButton
-              id="dashboard"
-              label="Dashboard"
+            <TabButton 
+              id="dashboard" 
+              label="Analytics" 
               icon={<BarChart3 className="w-5 h-5" />}
               isActive={activeTab === 'dashboard'}
               onClick={() => setActiveTab('dashboard')}
@@ -201,43 +215,43 @@ export default function AdminPanel() {
               className="space-y-8"
             >
               <div>
-                <h2 className="text-3xl font-bold text-white mb-2">Dashboard Overview</h2>
-                <p className="text-slate-400">Monitor your TextVision platform performance</p>
+                <h2 className="text-3xl font-bold text-white mb-2">Analytics Dashboard</h2>
+                <p className="text-slate-400">Monitor website traffic and user engagement</p>
               </div>
 
               {/* Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
                   icon={<Users className="w-6 h-6 text-white" />}
-                  title="Total Users"
-                  value={stats.totalUsers.toLocaleString()}
-                  subtitle={`${stats.activeUsers} active`}
+                  title="Total Visitors"
+                  value={totalVisitors.toLocaleString()}
+                  subtitle="All time"
                   color="from-cyan-500/20 to-cyan-600/20"
-                  trend="12"
-                />
-                <StatCard
-                  icon={<FileText className="w-6 h-6 text-white" />}
-                  title="Documents Processed"
-                  value={stats.totalDocuments.toLocaleString()}
-                  subtitle={`${stats.processedToday} today`}
-                  color="from-amber-500/20 to-amber-600/20"
-                  trend="8"
-                />
-                <StatCard
-                  icon={<DollarSign className="w-6 h-6 text-white" />}
-                  title="Monthly Revenue"
-                  value={`$${stats.revenue.toLocaleString()}`}
-                  subtitle="This month"
-                  color="from-green-500/20 to-green-600/20"
                   trend="15"
                 />
                 <StatCard
                   icon={<Activity className="w-6 h-6 text-white" />}
-                  title="System Health"
-                  value={`${stats.systemHealth}%`}
-                  subtitle="Uptime"
+                  title="Today's Visitors"
+                  value={todayVisitors.toLocaleString()}
+                  subtitle="Active today"
+                  color="from-amber-500/20 to-amber-600/20"
+                  trend="8"
+                />
+                <StatCard
+                  icon={<BarChart3 className="w-6 h-6 text-white" />}
+                  title="Page Views"
+                  value={totalPageViews.toLocaleString()}
+                  subtitle="All time"
+                  color="from-green-500/20 to-green-600/20"
+                  trend="12"
+                />
+                <StatCard
+                  icon={<Globe className="w-6 h-6 text-white" />}
+                  title="Online Users"
+                  value={onlineUsers.toString()}
+                  subtitle="Currently online"
                   color="from-purple-500/20 to-purple-600/20"
-                  trend="2"
+                  trend="3"
                 />
               </div>
 

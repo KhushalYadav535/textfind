@@ -13,10 +13,23 @@ import {
   Star
 } from 'lucide-react'
 import { useUserStore } from '../../store/userStore'
+import { useAnalyticsStore } from '../../store/analyticsStore'
 import { base44 } from '../../api/base44Client'
 
 export default function Dashboard() {
   const { usage, profile, preferences } = useUserStore()
+  const { 
+    totalVisitors, 
+    todayVisitors, 
+    weeklyVisitors, 
+    monthlyVisitors,
+    totalPageViews,
+    todayPageViews,
+    onlineUsers,
+    topCountries,
+    deviceStats,
+    init: initAnalytics 
+  } = useAnalyticsStore()
   const [recentActivity, setRecentActivity] = useState([])
   const [stats, setStats] = useState({
     totalDocuments: 0,
@@ -26,6 +39,7 @@ export default function Dashboard() {
   })
 
   useEffect(() => {
+    initAnalytics()
     loadDashboardData()
   }, [])
 
@@ -108,36 +122,121 @@ export default function Dashboard() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
-            icon={<FileText className="w-6 h-6 text-white" />}
-            title="Documents Processed"
-            value={stats.totalDocuments}
+            icon={<Users className="w-6 h-6 text-white" />}
+            title="Total Visitors"
+            value={totalVisitors.toLocaleString()}
             subtitle="All time"
             color="from-cyan-500 to-cyan-600"
-            trend="12"
-          />
-          <StatCard
-            icon={<Star className="w-6 h-6 text-white" />}
-            title="Average Accuracy"
-            value={`${stats.averageAccuracy}%`}
-            subtitle="Last 30 days"
-            color="from-amber-500 to-amber-600"
-            trend="5"
-          />
-          <StatCard
-            icon={<Clock className="w-6 h-6 text-white" />}
-            title="Time Saved"
-            value={`${stats.timeSaved}m`}
-            subtitle="Estimated"
-            color="from-green-500 to-green-600"
-            trend="8"
+            trend="15"
           />
           <StatCard
             icon={<Activity className="w-6 h-6 text-white" />}
-            title="Monthly Usage"
-            value={`${usage.monthlyUploads}/${usage.monthlyLimit}`}
-            subtitle="Uploads this month"
-            color="from-purple-500 to-purple-600"
+            title="Today's Visitors"
+            value={todayVisitors.toLocaleString()}
+            subtitle="Active today"
+            color="from-amber-500 to-amber-600"
+            trend="8"
           />
+          <StatCard
+            icon={<TrendingUp className="w-6 h-6 text-white" />}
+            title="Weekly Visitors"
+            value={weeklyVisitors.toLocaleString()}
+            subtitle="This week"
+            color="from-green-500 to-green-600"
+            trend="12"
+          />
+          <StatCard
+            icon={<FileText className="w-6 h-6 text-white" />}
+            title="Page Views"
+            value={totalPageViews.toLocaleString()}
+            subtitle="All time"
+            color="from-purple-500 to-purple-600"
+            trend="18"
+          />
+        </div>
+
+        {/* Analytics Overview */}
+        <div className="mb-8">
+          <div className="p-8 rounded-3xl bg-slate-800/30 border border-white/10 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+              <TrendingUp className="w-6 h-6 text-cyan-400" />
+              Website Analytics
+            </h2>
+            
+            <div className="grid md:grid-cols-3 gap-6 mb-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-cyan-400 mb-2">
+                  {onlineUsers}
+                </div>
+                <div className="text-slate-400">Online Now</div>
+                <div className="w-2 h-2 bg-green-400 rounded-full mx-auto mt-2 animate-pulse"></div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-amber-400 mb-2">
+                  {monthlyVisitors.toLocaleString()}
+                </div>
+                <div className="text-slate-400">This Month</div>
+                <div className="text-green-400 text-sm mt-1">↗ +12%</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-purple-400 mb-2">
+                  {todayPageViews.toLocaleString()}
+                </div>
+                <div className="text-slate-400">Today's Views</div>
+                <div className="text-green-400 text-sm mt-1">↗ +8%</div>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-4">Top Countries</h3>
+                <div className="space-y-3">
+                  {topCountries.slice(0, 5).map((country, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{country.flag}</span>
+                        <span className="text-slate-300">{country.country}</span>
+                      </div>
+                      <span className="text-white font-medium">{country.visitors.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-4">Device Types</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300">Desktop</span>
+                    <div className="flex items-center gap-3">
+                      <div className="w-24 bg-slate-700 rounded-full h-2">
+                        <div className="bg-cyan-400 h-2 rounded-full" style={{width: `${deviceStats.desktop}%`}}></div>
+                      </div>
+                      <span className="text-white font-medium w-12">{deviceStats.desktop}%</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300">Mobile</span>
+                    <div className="flex items-center gap-3">
+                      <div className="w-24 bg-slate-700 rounded-full h-2">
+                        <div className="bg-amber-400 h-2 rounded-full" style={{width: `${deviceStats.mobile}%`}}></div>
+                      </div>
+                      <span className="text-white font-medium w-12">{deviceStats.mobile}%</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300">Tablet</span>
+                    <div className="flex items-center gap-3">
+                      <div className="w-24 bg-slate-700 rounded-full h-2">
+                        <div className="bg-purple-400 h-2 rounded-full" style={{width: `${deviceStats.tablet}%`}}></div>
+                      </div>
+                      <span className="text-white font-medium w-12">{deviceStats.tablet}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">

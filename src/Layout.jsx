@@ -5,18 +5,22 @@ import { Sparkles, Upload, User, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "./store/authStore";
 import { useUserStore } from "./store/userStore";
+import { useAnalyticsStore } from "./store/analyticsStore";
 import toast from "react-hot-toast";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const { user, isAuthenticated, signOut, init: initAuth } = useAuthStore();
   const { usage, init: initUser } = useUserStore();
+  const { incrementPageView, init: initAnalytics } = useAnalyticsStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   useEffect(() => {
     initAuth();
     initUser();
-  }, []);
+    initAnalytics();
+    incrementPageView(); // Track page views
+  }, [location.pathname]); // Track on route change
 
   const handleSignOut = async () => {
     const result = await signOut();

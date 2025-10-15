@@ -1,9 +1,16 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "../utils";
+import { useAnalyticsStore } from "../store/analyticsStore";
 import { ArrowRight, Zap, Shield, Globe, Sparkles, Users, TrendingUp, Award } from "lucide-react";
 
 export default function Landing() {
+  const { init: initAnalytics, totalVisitors, todayVisitors } = useAnalyticsStore();
+
+  useEffect(() => {
+    initAnalytics(); // Initialize analytics when landing page loads
+  }, []);
+
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
@@ -93,21 +100,21 @@ export default function Landing() {
           <div className="grid md:grid-cols-4 gap-8 text-center">
             <div className="space-y-2">
               <div className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-amber-400 bg-clip-text text-transparent">
-                1M+
+                {totalVisitors.toLocaleString()}
               </div>
-              <p className="text-slate-400">Documents Processed</p>
+              <p className="text-slate-400">Total Visitors</p>
+            </div>
+            <div className="space-y-2">
+              <div className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-amber-400 bg-clip-text text-transparent">
+                {todayVisitors.toLocaleString()}
+              </div>
+              <p className="text-slate-400">Today's Visitors</p>
             </div>
             <div className="space-y-2">
               <div className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-amber-400 bg-clip-text text-transparent">
                 99.5%
               </div>
               <p className="text-slate-400">Accuracy Rate</p>
-            </div>
-            <div className="space-y-2">
-              <div className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-amber-400 bg-clip-text text-transparent">
-                100+
-              </div>
-              <p className="text-slate-400">Languages Supported</p>
             </div>
             <div className="space-y-2">
               <div className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-amber-400 bg-clip-text text-transparent">
