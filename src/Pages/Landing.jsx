@@ -2,7 +2,6 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "../utils";
 import { ArrowRight, Zap, Shield, Globe, Sparkles, Users, TrendingUp, Award } from "lucide-react";
-import PricingSection from "../components/pricing/PricingSection";
 
 export default function Landing() {
   return (
@@ -119,9 +118,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
-      {/* Pricing Section */}
-      <PricingSection />
 
       {/* CTA Section */}
       <section className="py-20 px-6">

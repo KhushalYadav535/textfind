@@ -1,20 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "./utils";
-import { Sparkles, Upload, History, User, LogOut, Settings, CreditCard, Bell, Search, Code, Shield, Webhook } from "lucide-react";
+import { Sparkles, Upload, User, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "./store/authStore";
 import { useUserStore } from "./store/userStore";
-import AuthModal from "./components/auth/AuthModal";
 import toast from "react-hot-toast";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const { user, isAuthenticated, signOut, init: initAuth } = useAuthStore();
   const { usage, init: initUser } = useUserStore();
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     initAuth();
@@ -57,18 +54,6 @@ export default function Layout({ children, currentPageName }) {
             </Link>
 
             <div className="flex items-center gap-2">
-              {/* Search Bar */}
-              <div className="relative hidden md:block">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search documents..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all text-sm w-64"
-                />
-              </div>
-
               <Link to={createPageUrl("Upload")}>
                 <button className={`px-4 py-2 rounded-xl transition-all duration-300 flex items-center gap-2 ${
                   location.pathname === createPageUrl("Upload")
@@ -79,33 +64,6 @@ export default function Layout({ children, currentPageName }) {
                   <span className="hidden sm:inline">Upload</span>
                 </button>
               </Link>
-              <Link to={createPageUrl("History")}>
-                <button className={`px-4 py-2 rounded-xl transition-all duration-300 flex items-center gap-2 ${
-                  location.pathname === createPageUrl("History")
-                    ? "bg-white/10 text-white"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                }`}>
-                  <History className="w-4 h-4" />
-                  <span className="hidden sm:inline">History</span>
-                </button>
-              </Link>
-              
-              <Link to="/api-docs">
-                <button className={`px-4 py-2 rounded-xl transition-all duration-300 flex items-center gap-2 ${
-                  location.pathname === "/api-docs"
-                    ? "bg-white/10 text-white"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                }`}>
-                  <Code className="w-4 h-4" />
-                  <span className="hidden sm:inline">API</span>
-                </button>
-              </Link>
-
-              {/* Notifications */}
-              <button className="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-300">
-                <Bell className="w-4 h-4" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
 
               {/* User Menu */}
               {isAuthenticated ? (
@@ -133,31 +91,6 @@ export default function Layout({ children, currentPageName }) {
                           <p className="text-slate-400 text-sm">Free Plan • {usage.monthlyUploads}/{usage.monthlyLimit} uploads</p>
                         </div>
                         <div className="p-2">
-                          <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors">
-                            <User className="w-4 h-4" />
-                            Profile Settings
-                          </button>
-                          <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors">
-                            <CreditCard className="w-4 h-4" />
-                            Billing & Plans
-                          </button>
-                          <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors">
-                            <Settings className="w-4 h-4" />
-                            Preferences
-                          </button>
-                          <Link to="/admin">
-                            <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors">
-                              <Shield className="w-4 h-4" />
-                              Admin Panel
-                            </button>
-                          </Link>
-                          <Link to="/webhooks">
-                            <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors">
-                              <Webhook className="w-4 h-4" />
-                              Webhooks
-                            </button>
-                          </Link>
-                          <hr className="my-2 border-white/10" />
                           <button
                             onClick={handleSignOut}
                             className="w-full flex items-center gap-3 px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-colors"
@@ -171,12 +104,9 @@ export default function Layout({ children, currentPageName }) {
                   </AnimatePresence>
                 </div>
               ) : (
-                <button
-                  onClick={() => setShowAuthModal(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-amber-500 rounded-xl text-white font-semibold text-sm transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25"
-                >
-                  Sign In
-                </button>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-amber-500 flex items-center justify-center">
+                  <User className="w-4 h-4 text-white" />
+                </div>
               )}
             </div>
           </div>
@@ -187,12 +117,6 @@ export default function Layout({ children, currentPageName }) {
       <main className="relative z-10">
         {children}
       </main>
-
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
 
       {/* Toast Container */}
       <div id="toast-container"></div>
