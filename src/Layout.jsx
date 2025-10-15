@@ -53,7 +53,7 @@ export default function Layout({ children, currentPageName }) {
                 </div>
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-amber-400 bg-clip-text text-transparent">
-                TextVision
+                TextMitra
               </span>
             </Link>
 

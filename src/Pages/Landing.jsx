@@ -133,7 +133,7 @@ export default function Landing() {
             Ready to Transform Your Documents?
           </h2>
           <p className="text-xl text-slate-400 mb-8">
-            Join thousands of users who trust TextVision for their OCR needs
+            Join thousands of users who trust TextMitra for their OCR needs
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to={createPageUrl("Upload")}>

@@ -157,7 +157,7 @@ export default function AdminPanel() {
             <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-amber-400 bg-clip-text text-transparent">
               Admin Panel
             </h1>
-            <p className="text-slate-400 text-sm mt-1">TextVision Management</p>
+            <p className="text-slate-400 text-sm mt-1">TextMitra Management</p>
           </div>
 
           <div className="space-y-2">

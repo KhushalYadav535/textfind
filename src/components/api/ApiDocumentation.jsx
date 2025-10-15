@@ -10,7 +10,7 @@ export default function ApiDocumentation() {
 
   const codeSnippets = {
     curl: `# Basic OCR Request
-curl -X POST https://api.textvision.ai/v1/ocr \\
+curl -X POST https://api.textmitra.ai/v1/ocr \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -25,7 +25,7 @@ curl -X POST https://api.textvision.ai/v1/ocr \\
   }'
 
 # Batch Processing
-curl -X POST https://api.textvision.ai/v1/batch \\
+curl -X POST https://api.textmitra.ai/v1/batch \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -41,9 +41,9 @@ curl -X POST https://api.textvision.ai/v1/batch \\
   }'`,
 
     javascript: `// Using our official JavaScript SDK
-import { TextVisionAPI } from 'textvision-js';
+import { TextMitraAPI } from 'textmitra-js';
 
-const client = new TextVisionAPI('YOUR_API_KEY');
+const client = new TextMitraAPI('YOUR_API_KEY');
 
 // Basic OCR
 const result = await client.extractText({
@@ -79,9 +79,9 @@ const uploadResult = await client.uploadAndProcess(file, ['eng'], {
 });`,
 
     python: `# Using our official Python SDK
-from textvision import TextVisionAPI
+from textmitra import TextMitraAPI
 
-client = TextVisionAPI(api_key='YOUR_API_KEY')
+client = TextMitraAPI(api_key='YOUR_API_KEY')
 
 # Basic OCR
 result = client.extract_text(
@@ -117,9 +117,9 @@ with open('document.pdf', 'rb') as file:
 
     php: `<?php
 // Using our official PHP SDK
-use TextVision\\TextVisionAPI;
+use TextMitra\\TextMitraAPI;
 
-$client = new TextVisionAPI('YOUR_API_KEY');
+$client = new TextMitraAPI('YOUR_API_KEY');
 
 // Basic OCR
 $result = $client->extractText([
@@ -203,7 +203,7 @@ $uploadResult = $client->uploadAndProcess($file, ['eng'], [
       {/* Header */}
       <div className="text-center mb-12">
         <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-white to-cyan-400 bg-clip-text text-transparent mb-4">
-          TextVision API Documentation
+                  TextMitra API Documentation
         </h1>
         <p className="text-xl text-slate-400 max-w-3xl mx-auto">
           Integrate powerful OCR capabilities into your applications with our RESTful API. 
@@ -311,7 +311,7 @@ $uploadResult = $client->uploadAndProcess($file, ['eng'], [
                 <div className="p-8 rounded-3xl bg-gradient-to-br from-cyan-500/10 to-amber-500/10 border border-white/10 backdrop-blur-sm">
                   <h2 className="text-3xl font-bold text-white mb-4">Getting Started</h2>
                   <p className="text-slate-300 mb-6">
-                    The TextVision API allows you to extract text from images using advanced OCR technology. 
+                    The TextMitra API allows you to extract text from images using advanced OCR technology. 
                     Simply send an image URL or upload a file, and receive the extracted text with confidence scores.
                   </p>
                   
@@ -343,7 +343,7 @@ $uploadResult = $client->uploadAndProcess($file, ['eng'], [
                 <div className="p-8 rounded-3xl bg-slate-800/30 border border-white/10 backdrop-blur-sm">
                   <h2 className="text-2xl font-bold text-white mb-4">Base URL</h2>
                   <div className="bg-slate-900 p-4 rounded-xl border border-white/10">
-                    <code className="text-cyan-400">https://api.textvision.ai/v1</code>
+                    <code className="text-cyan-400">https://api.textmitra.ai/v1</code>
                   </div>
                 </div>
               </motion.div>
@@ -359,7 +359,7 @@ $uploadResult = $client->uploadAndProcess($file, ['eng'], [
                 <div className="p-8 rounded-3xl bg-slate-800/30 border border-white/10 backdrop-blur-sm">
                   <h2 className="text-3xl font-bold text-white mb-4">Authentication</h2>
                   <p className="text-slate-300 mb-6">
-                    TextVision uses API keys to authenticate requests. Include your API key in the Authorization header.
+                    TextMitra uses API keys to authenticate requests. Include your API key in the Authorization header.
                   </p>
 
                   <div className="space-y-4">
@@ -525,21 +525,21 @@ $uploadResult = $client->uploadAndProcess($file, ['eng'], [
                       <Download className="w-5 h-5 text-cyan-400" />
                       <div className="text-left">
                         <div className="text-white font-medium">JavaScript SDK</div>
-                        <div className="text-slate-400 text-sm">npm install textvision-js</div>
+                        <div className="text-slate-400 text-sm">npm install textmitra-js</div>
                       </div>
                     </button>
                     <button className="flex items-center gap-3 p-4 rounded-xl bg-slate-700/50 hover:bg-slate-700 border border-white/10 transition-all">
                       <Download className="w-5 h-5 text-cyan-400" />
                       <div className="text-left">
                         <div className="text-white font-medium">Python SDK</div>
-                        <div className="text-slate-400 text-sm">pip install textvision</div>
+                        <div className="text-slate-400 text-sm">pip install textmitra</div>
                       </div>
                     </button>
                     <button className="flex items-center gap-3 p-4 rounded-xl bg-slate-700/50 hover:bg-slate-700 border border-white/10 transition-all">
                       <Download className="w-5 h-5 text-cyan-400" />
                       <div className="text-left">
                         <div className="text-white font-medium">PHP SDK</div>
-                        <div className="text-slate-400 text-sm">composer require textvision/php</div>
+                        <div className="text-slate-400 text-sm">composer require textmitra/php</div>
                       </div>
                     </button>
                   </div>
@@ -682,7 +682,7 @@ $uploadResult = $client->uploadAndProcess($file, ['eng'], [
                         <h3 className="text-xl font-bold text-white">Web Integration</h3>
                       </div>
                       <p className="text-slate-300 mb-4">
-                        Learn how to integrate TextVision API into your web applications using JavaScript, React, or any frontend framework.
+                        Learn how to integrate TextMitra API into your web applications using JavaScript, React, or any frontend framework.
                       </p>
                       <div className="space-y-2 text-sm">
                         <div className="text-slate-400">• React Integration</div>
@@ -703,7 +703,7 @@ $uploadResult = $client->uploadAndProcess($file, ['eng'], [
                         <h3 className="text-xl font-bold text-white">Backend Integration</h3>
                       </div>
                       <p className="text-slate-300 mb-4">
-                        Integrate TextVision API into your backend services using Python, Node.js, PHP, or other server-side technologies.
+                        Integrate TextMitra API into your backend services using Python, Node.js, PHP, or other server-side technologies.
                       </p>
                       <div className="space-y-2 text-sm">
                         <div className="text-slate-400">• Python Flask/Django</div>
