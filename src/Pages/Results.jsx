@@ -2,8 +2,10 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "../api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "../utils";
-import { Copy, Download, RotateCcw, CheckCircle, ImageIcon, FileText } from "lucide-react";
+import { Copy, Download, RotateCcw, CheckCircle, ImageIcon, FileText, Type, Eye } from "lucide-react";
 import { Skeleton } from "../components/ui/skeleton";
+import FormattedTextEditor from "../components/editor/FormattedTextEditor";
+import SmartTextFormatter from "../components/editor/SmartTextFormatter";
 
 export default function Results() {
   const navigate = useNavigate();
@@ -11,6 +13,8 @@ export default function Results() {
   const [isLoading, setIsLoading] = useState(true);
   const [editedText, setEditedText] = useState("");
   const [copied, setCopied] = useState(false);
+  const [showFormattedEditor, setShowFormattedEditor] = useState(false);
+  const [viewMode, setViewMode] = useState('plain'); // 'plain', 'formatted', or 'smart'
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -98,6 +102,26 @@ export default function Results() {
           </div>
           
           <div className="flex flex-wrap gap-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setViewMode(viewMode === 'plain' ? 'formatted' : 'plain')}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white transition-all duration-300"
+              >
+                {viewMode === 'plain' ? <Type className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {viewMode === 'plain' ? 'Format Text' : 'Plain View'}
+              </button>
+              <button
+                onClick={() => setViewMode('smart')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-white transition-all duration-300 ${
+                  viewMode === 'smart' 
+                    ? 'bg-gradient-to-r from-purple-500 to-cyan-500' 
+                    : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                }`}
+              >
+                <Type className="w-4 h-4" />
+                Smart Format
+              </button>
+            </div>
             <button
               onClick={handleCopy}
               className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white transition-all duration-300"
@@ -147,33 +171,72 @@ export default function Results() {
           </div>
 
           {/* Text Editor */}
-          <div className="group relative rounded-3xl bg-gradient-to-br from-amber-500/10 to-purple-500/10 border border-white/10 backdrop-blur-sm p-8 hover:border-white/20 transition-all duration-500">
-            <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600">
-                    <FileText className="w-5 h-5 text-white" />
-                  </div>
-                  <h2 className="text-xl font-bold text-white">Extracted Text</h2>
-                </div>
-                <button
-                  onClick={handleSave}
-                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl text-white text-sm font-semibold transition-all duration-300 hover:scale-105"
-                >
-                  Save Changes
-                </button>
-              </div>
+          {viewMode === 'formatted' ? (
+            <FormattedTextEditor
+              initialText={editedText}
+              onSave={(formattedText) => {
+                setEditedText(formattedText)
+                // Save to record
+                if (record) {
+                  const updatedRecord = { ...record, extracted_text: formattedText }
+                  base44.entities.UploadHistory.update(record.id, updatedRecord)
+                }
+              }}
+              onCopy={(formattedText) => {
+                navigator.clipboard.writeText(formattedText)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+              className="group relative rounded-3xl bg-gradient-to-br from-amber-500/10 to-purple-500/10 border border-white/10 backdrop-blur-sm hover:border-white/20 transition-all duration-500"
+            />
+          ) : viewMode === 'smart' ? (
+            <SmartTextFormatter
+              originalText={editedText}
+              imageUrl={record?.image_url}
+              onSave={(formattedText) => {
+                setEditedText(formattedText)
+                // Save to record
+                if (record) {
+                  const updatedRecord = { ...record, extracted_text: formattedText }
+                  base44.entities.UploadHistory.update(record.id, updatedRecord)
+                }
+              }}
+              onCopy={(formattedText) => {
+                navigator.clipboard.writeText(formattedText)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+              className="group relative rounded-3xl bg-gradient-to-br from-purple-500/10 to-cyan-500/10 border border-white/10 backdrop-blur-sm hover:border-white/20 transition-all duration-500"
+            />
+          ) : (
+            <div className="group relative rounded-3xl bg-gradient-to-br from-amber-500/10 to-purple-500/10 border border-white/10 backdrop-blur-sm p-8 hover:border-white/20 transition-all duration-500">
+              <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               
-              <textarea
-                value={editedText}
-                onChange={(e) => setEditedText(e.target.value)}
-                className="w-full h-96 p-6 rounded-2xl bg-slate-900/50 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all resize-none font-mono text-sm leading-relaxed"
-                placeholder="Extracted text will appear here..."
-              />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600">
+                      <FileText className="w-5 h-5 text-white" />
+                    </div>
+                    <h2 className="text-xl font-bold text-white">Extracted Text</h2>
+                  </div>
+                  <button
+                    onClick={handleSave}
+                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl text-white text-sm font-semibold transition-all duration-300 hover:scale-105"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+                
+                <textarea
+                  value={editedText}
+                  onChange={(e) => setEditedText(e.target.value)}
+                  className="w-full h-96 p-6 rounded-2xl bg-slate-900/50 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all resize-none font-mono text-sm leading-relaxed"
+                  placeholder="Extracted text will appear here..."
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
