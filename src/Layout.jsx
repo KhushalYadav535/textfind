@@ -122,6 +122,17 @@ export default function Layout({ children, currentPageName }) {
         {children}
       </main>
 
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-white/5 bg-slate-900/40 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-center">
+            <p className="text-slate-400 text-sm">
+              Powered by <span className="text-cyan-400 font-semibold">Datatrack</span>
+            </p>
+          </div>
+        </div>
+      </footer>
+
       {/* Toast Container */}
       <div id="toast-container"></div>
     </div>

@@ -53,7 +53,7 @@ export default function Landing() {
               </Link>
               
               <Link to={createPageUrl("Dashboard")}>
-                <button className="px-8 py-4 bg-white/5 hover:bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl text-white font-semibold text-lg transition-all duration-300 hover:scale-105">
+                <button className="px-8 py-4 bg-slate-700/50 hover:bg-slate-600/50 backdrop-blur-sm border border-slate-600/50 rounded-2xl text-white font-semibold text-lg transition-all duration-300 hover:scale-105">
                   Go to Dashboard
                 </button>
               </Link>
@@ -146,7 +146,7 @@ export default function Landing() {
               </button>
             </Link>
             <Link to={createPageUrl("Dashboard")}>
-              <button className="px-8 py-4 bg-white/5 hover:bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl text-white font-semibold text-lg transition-all duration-300 hover:scale-105">
+              <button className="px-8 py-4 bg-slate-700/50 hover:bg-slate-600/50 backdrop-blur-sm border border-slate-600/50 rounded-2xl text-white font-semibold text-lg transition-all duration-300 hover:scale-105">
                 View Dashboard
               </button>
             </Link>

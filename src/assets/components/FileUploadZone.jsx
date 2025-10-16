@@ -29,13 +29,17 @@ export default function FileUploadZone({ onFileSelect }) {
   };
 
   const handleFile = (file) => {
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setPreview(e.target.result);
-      };
-      reader.readAsDataURL(file);
+    if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setPreview(e.target.result);
+        };
+        reader.readAsDataURL(file);
+      }
       onFileSelect(file);
+    } else {
+      alert('Please select an image file (PNG, JPG, WEBP) or PDF file.');
     }
   };
 
@@ -77,10 +81,10 @@ export default function FileUploadZone({ onFileSelect }) {
         </div>
 
         <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">
-          Drop your image here
+          Drop your file here
         </h3>
         <p className="text-slate-400 mb-8 max-w-md mx-auto">
-          or click to browse files, use your camera, or paste from clipboard
+          Upload images or PDF files, use your camera, or paste from clipboard
         </p>
 
         {/* Action Buttons */}
@@ -88,7 +92,7 @@ export default function FileUploadZone({ onFileSelect }) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,.pdf"
             onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
             className="hidden"
           />
@@ -111,7 +115,7 @@ export default function FileUploadZone({ onFileSelect }) {
 
           <button
             onClick={() => cameraInputRef.current?.click()}
-            className="flex items-center gap-3 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white font-semibold transition-all duration-300 hover:scale-105"
+            className="flex items-center gap-3 px-6 py-3 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600/50 rounded-xl text-white font-semibold transition-all duration-300 hover:scale-105"
           >
             <Camera className="w-5 h-5" />
             Use Camera
