@@ -63,8 +63,13 @@ export default function Upload() {
         setTimeout(() => {
           navigate(createPageUrl(`Results?id=${historyRecord.id}`));
         }, 500);
+      } else if (result.status === "error") {
+        // Handle specific error messages from OCR
+        const errorMessage = result.output?.text || "Failed to process file";
+        throw new Error(errorMessage);
       } else {
-        throw new Error("Could not extract text from image");
+        // Generic error
+        throw new Error("Could not extract text from the file. Please try with a different file.");
       }
     } catch (err) {
       setError(err.message || "Failed to process image");

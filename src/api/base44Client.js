@@ -12,6 +12,28 @@ export const base44 = {
       },
       ExtractDataFromUploadedFile: async ({ file_url, file }) => {
         try {
+          // Check file type
+          const fileType = file?.type || 'unknown';
+          const isPDF = fileType === 'application/pdf';
+          const isImage = fileType.startsWith('image/');
+          
+          console.log('Processing file type:', fileType);
+          
+          if (!isPDF && !isImage) {
+            return {
+              status: "error",
+              output: {
+                text: "Unsupported file format. Please upload an image (PNG, JPG, WEBP) or PDF file.",
+                confidence: 0
+              }
+            };
+          }
+
+          // For PDF files, show a helpful message
+          if (isPDF) {
+            console.log('PDF file detected, processing with Tesseract.js...');
+          }
+
           // Real OCR extraction using Tesseract.js
           const { data: { text, confidence } } = await Tesseract.recognize(
             file || file_url,
@@ -21,23 +43,57 @@ export const base44 = {
                 if (m.status === 'recognizing text') {
                   console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
                 }
+                if (m.status === 'loading tesseract core') {
+                  console.log('Loading Tesseract core...');
+                }
+                if (m.status === 'initializing tesseract') {
+                  console.log('Initializing Tesseract...');
+                }
               }
             }
           );
           
+          const extractedText = text.trim();
+          
+          if (!extractedText || extractedText.length < 3) {
+            return {
+              status: "success",
+              output: {
+                text: isPDF 
+                  ? "No text could be extracted from this PDF. The PDF might be scanned as images or contain only images. Try uploading a PDF with selectable text or convert it to images first."
+                  : "No text detected in the image. Please ensure the image contains clear, readable text.",
+                confidence: Math.round(confidence)
+              }
+            };
+          }
+          
           return {
             status: "success",
             output: {
-              text: text.trim() || "No text detected in the image",
+              text: extractedText,
               confidence: Math.round(confidence)
             }
           };
         } catch (error) {
           console.error('OCR Error:', error);
+          
+          // Provide specific error messages based on error type
+          let errorMessage = "Error processing the file. ";
+          
+          if (error.message?.includes('Invalid image')) {
+            errorMessage += "The file format might not be supported or the file is corrupted.";
+          } else if (error.message?.includes('network')) {
+            errorMessage += "Network error occurred while processing.";
+          } else if (file?.type === 'application/pdf') {
+            errorMessage += "PDF processing failed. Try converting the PDF to images first or ensure the PDF contains readable text.";
+          } else {
+            errorMessage += "Please try with a different file or check if the file contains clear, readable text.";
+          }
+          
           return {
             status: "error",
             output: {
-              text: "Error extracting text from image",
+              text: errorMessage,
               confidence: 0
             }
           };
