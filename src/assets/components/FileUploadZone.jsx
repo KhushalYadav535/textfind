@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
-import { Upload, Camera, Image as ImageIcon } from "lucide-react";
+import { Upload, Camera, Image as ImageIcon, FileText } from "lucide-react";
+import { isPDFFile, validatePDFFile, createPDFPreview, getPDFProcessingTips } from "../../utils/pdfUtils";
 
 export default function FileUploadZone({ onFileSelect }) {
   const [dragActive, setDragActive] = useState(false);
@@ -28,31 +29,37 @@ export default function FileUploadZone({ onFileSelect }) {
     }
   };
 
-  const handleFile = (file) => {
-    // Check file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
-      alert('File size too large. Please select a file smaller than 10MB.');
-      return;
-    }
-
+  const handleFile = async (file) => {
     // Check file type
     const isValidImage = file.type.startsWith('image/') && 
                         ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type);
-    const isValidPDF = file.type === 'application/pdf';
+    const isValidPDF = isPDFFile(file);
 
-    if (isValidImage || isValidPDF) {
-      if (isValidImage) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setPreview(e.target.result);
-        };
-        reader.readAsDataURL(file);
-      } else if (isValidPDF) {
-        // For PDF files, show a preview message
-        setPreview('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzM0NDE1NSIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlBERiBGaWxlPC90ZXh0Pjwvc3ZnPg==');
-      }
+    if (isValidImage) {
+      // Handle image files
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
       onFileSelect(file);
+    } else if (isValidPDF) {
+      // Validate PDF file
+      const validation = validatePDFFile(file);
+      if (!validation.isValid) {
+        alert(validation.errors.join('\n'));
+        return;
+      }
+
+      // Create PDF preview
+      try {
+        const previewData = await createPDFPreview(file);
+        setPreview(previewData.preview);
+        onFileSelect(file);
+      } catch (error) {
+        console.error('PDF preview error:', error);
+        alert('Error processing PDF file. Please try a different file.');
+      }
     } else {
       alert('Please select a valid image file (PNG, JPG, WEBP) or PDF file.');
     }
@@ -146,11 +153,19 @@ export default function FileUploadZone({ onFileSelect }) {
         </div>
         
         {/* PDF Help Text */}
-        <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-          <p className="text-xs text-amber-300 text-center">
-            <strong>PDF Note:</strong> For best results with PDF files, ensure they contain selectable text. 
-            Scanned PDFs (images) may not work as well.
-          </p>
+        <div className="mt-4 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+          <div className="flex items-start gap-3">
+            <FileText className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm text-amber-300 font-semibold mb-2">PDF Processing Tips:</p>
+              <ul className="text-xs text-amber-300 space-y-1">
+                <li>• Ensure PDF contains selectable text (not scanned images)</li>
+                <li>• Avoid password-protected PDFs</li>
+                <li>• Clear, readable fonts work best</li>
+                <li>• For scanned PDFs, try converting to images first</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </div>

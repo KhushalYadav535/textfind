@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "../utils";
 import FileUploadZone from "../assets/components/FileUploadZone";
 import ProcessingView from "../assets/components/Processingview";
+import PDFConversionHelper from "../components/pdf/PDFConversionHelper";
 import { AlertCircle } from "lucide-react";
 
 export default function Upload() {
@@ -12,6 +13,7 @@ export default function Upload() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
+  const [showPDFHelper, setShowPDFHelper] = useState(false);
 
   const handleFileSelect = async (file) => {
     setSelectedFile(file);
@@ -74,6 +76,11 @@ export default function Upload() {
     } catch (err) {
       setError(err.message || "Failed to process image");
       setIsProcessing(false);
+      
+      // Show PDF helper if it's a PDF processing error
+      if (selectedFile?.type === 'application/pdf') {
+        setShowPDFHelper(true);
+      }
     }
   };
 
@@ -99,7 +106,16 @@ export default function Upload() {
         )}
 
         {!isProcessing ? (
-          <FileUploadZone onFileSelect={handleFileSelect} />
+          <>
+            <FileUploadZone onFileSelect={handleFileSelect} />
+            
+            {/* PDF Conversion Helper */}
+            {showPDFHelper && (
+              <div className="mt-8">
+                <PDFConversionHelper />
+              </div>
+            )}
+          </>
         ) : (
           <ProcessingView 
             file={selectedFile}
