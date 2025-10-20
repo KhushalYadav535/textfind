@@ -5,24 +5,24 @@ export default function PDFConversionHelper() {
   const conversionSteps = [
     {
       step: 1,
-      title: "Check PDF Type",
-      description: "Verify if your PDF contains selectable text or is scanned images",
+      title: "Upload PDF Directly",
+      description: "Simply upload your PDF file - we'll automatically detect if it's scanned or text-based",
       icon: <FileText className="w-5 h-5" />,
-      tips: ["Try selecting text in the PDF", "If text can't be selected, it's likely scanned"]
+      tips: ["Both scanned and text-based PDFs are supported", "No manual conversion needed", "Automatic detection and processing"]
     },
     {
       step: 2,
-      title: "Convert to Images",
-      description: "Use online tools or software to convert PDF pages to images",
+      title: "Automatic Processing",
+      description: "Scanned PDFs are converted to images and processed with OCR automatically",
       icon: <Image className="w-5 h-5" />,
-      tips: ["Use tools like Adobe Acrobat", "Convert each page to PNG/JPG", "Maintain high resolution"]
+      tips: ["High-quality OCR using Tesseract.js", "Multi-language support", "Progress tracking for large files"]
     },
     {
       step: 3,
-      title: "Upload Images",
-      description: "Upload the converted images to TextMitra for OCR processing",
+      title: "Get Results",
+      description: "Receive extracted text with confidence scores and processing details",
       icon: <CheckCircle className="w-5 h-5" />,
-      tips: ["Upload one image at a time", "Ensure good image quality", "Clear, readable text works best"]
+      tips: ["View confidence scores for each page", "Download extracted text", "Processing history saved"]
     }
   ]
 
@@ -54,9 +54,9 @@ export default function PDFConversionHelper() {
           <Lightbulb className="w-6 h-6 text-amber-400" />
         </div>
         <div>
-          <h3 className="text-xl font-bold text-white mb-2">PDF Processing Help</h3>
+          <h3 className="text-xl font-bold text-white mb-2">Enhanced PDF Processing</h3>
           <p className="text-slate-300">
-            Having trouble with PDF processing? Follow these steps to convert your PDF to images for better OCR results.
+            Now supporting both scanned and text-based PDFs with automatic detection and OCR processing.
           </p>
         </div>
       </div>
@@ -89,38 +89,47 @@ export default function PDFConversionHelper() {
         ))}
       </div>
 
-      {/* Online Tools */}
+      {/* Features */}
       <div className="mb-6">
         <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 text-amber-400" />
-          Recommended Online Tools
+          <CheckCircle className="w-5 h-5 text-green-400" />
+          New Features
         </h4>
-        <div className="grid md:grid-cols-3 gap-4">
-          {onlineTools.map((tool, index) => (
-            <a
-              key={index}
-              href={tool.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-4 rounded-xl bg-slate-800/50 border border-white/10 hover:border-amber-500/30 transition-all duration-300 hover:scale-105"
-            >
-              <h5 className="text-white font-semibold mb-2">{tool.name}</h5>
-              <p className="text-slate-400 text-sm mb-2">{tool.description}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-green-400">Free</span>
-                <span className="text-xs text-amber-400">→</span>
-              </div>
-            </a>
-          ))}
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="p-4 rounded-xl bg-slate-800/50 border border-green-500/20">
+            <h5 className="text-white font-semibold mb-2">Automatic Detection</h5>
+            <p className="text-slate-400 text-sm">Detects scanned vs text-based PDFs automatically</p>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-800/50 border border-green-500/20">
+            <h5 className="text-white font-semibold mb-2">OCR Processing</h5>
+            <p className="text-slate-400 text-sm">High-quality OCR using Tesseract.js for scanned PDFs</p>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-800/50 border border-green-500/20">
+            <h5 className="text-white font-semibold mb-2">Multi-language</h5>
+            <p className="text-slate-400 text-sm">Support for multiple languages including Hindi, English, and more</p>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-800/50 border border-green-500/20">
+            <h5 className="text-white font-semibold mb-2">Progress Tracking</h5>
+            <p className="text-slate-400 text-sm">Real-time progress updates for large PDF processing</p>
+          </div>
         </div>
       </div>
 
-      {/* Alternative Solution */}
+      {/* Current Status */}
       <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-600/50">
-        <h4 className="text-white font-semibold mb-2">Alternative Solution</h4>
+        <h4 className="text-white font-semibold mb-2">Current Status</h4>
         <p className="text-slate-300 text-sm">
-          If PDF processing continues to fail, try using our <strong>image upload feature</strong> instead. 
-          Convert your PDF pages to high-quality images (PNG/JPG) and upload them individually for better OCR results.
+          PDF processing is now available! The system automatically detects scanned vs text-based PDFs and processes them accordingly. 
+          If you encounter any issues, you can still use our <strong>image upload feature</strong> as an alternative.
+        </p>
+      </div>
+
+      {/* Troubleshooting */}
+      <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+        <h4 className="text-amber-300 font-semibold mb-2">Having Issues?</h4>
+        <p className="text-slate-300 text-sm">
+          If PDF processing fails, try converting your PDF to images using online tools like SmallPDF or ILovePDF, 
+          then upload the images individually for OCR processing.
         </p>
       </div>
     </div>

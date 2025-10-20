@@ -1,4 +1,5 @@
 // PDF utility functions for better PDF handling
+import { processPDF, analyzePDFType, validatePDFForProcessing, getProcessingTips } from './pdfProcessor.js';
 
 export const isPDFFile = (file) => {
   return file && file.type === 'application/pdf';
@@ -14,28 +15,8 @@ export const getPDFInfo = (file) => {
 };
 
 export const validatePDFFile = (file) => {
-  const errors = [];
-  
-  // Check file size (max 10MB)
-  const maxSize = 10 * 1024 * 1024; // 10MB
-  if (file.size > maxSize) {
-    errors.push('File size too large. Please select a PDF smaller than 10MB.');
-  }
-  
-  // Check if it's actually a PDF
-  if (!isPDFFile(file)) {
-    errors.push('Please select a valid PDF file.');
-  }
-  
-  // Check file extension
-  if (!file.name.toLowerCase().endsWith('.pdf')) {
-    errors.push('File must have .pdf extension.');
-  }
-  
-  return {
-    isValid: errors.length === 0,
-    errors
-  };
+  // Use the enhanced validation from pdfProcessor
+  return validatePDFForProcessing(file);
 };
 
 export const createPDFPreview = (file) => {
@@ -71,14 +52,45 @@ export const createPDFPreview = (file) => {
   });
 };
 
-export const getPDFProcessingTips = () => {
+export const getPDFProcessingTips = (analysis = null) => {
+  if (analysis) {
+    return getProcessingTips(analysis);
+  }
+  
   return [
     "Ensure the PDF contains selectable text (not just scanned images)",
     "Avoid password-protected PDFs",
-    "For scanned PDFs, try converting to images first",
+    "For scanned PDFs, OCR processing will be used automatically",
     "PDFs with clear, readable fonts work best",
-    "Complex layouts may not process perfectly"
+    "Complex layouts may not process perfectly",
+    "Large PDFs may take longer to process"
   ];
+};
+
+// New function to analyze PDF type
+export const analyzePDF = async (file) => {
+  try {
+    return await analyzePDFType(file);
+  } catch (error) {
+    console.error('Error analyzing PDF:', error);
+    return {
+      isScanned: true,
+      hasText: false,
+      confidence: 0,
+      totalPages: 0,
+      pagesWithText: 0
+    };
+  }
+};
+
+// New function to process PDF with OCR support
+export const processPDFWithOCR = async (file, options = {}) => {
+  try {
+    return await processPDF(file, options);
+  } catch (error) {
+    console.error('Error processing PDF:', error);
+    throw error;
+  }
 };
 
 export const formatFileSize = (bytes) => {

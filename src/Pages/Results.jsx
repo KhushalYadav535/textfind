@@ -6,6 +6,7 @@ import { Copy, Download, RotateCcw, CheckCircle, ImageIcon, FileText, Type, Eye 
 import { Skeleton } from "../components/ui/skeleton";
 import FormattedTextEditor from "../components/editor/FormattedTextEditor";
 import SmartTextFormatter from "../components/editor/SmartTextFormatter";
+import PDFFallbackResult from "../components/pdf/PDFFallbackResult";
 
 export default function Results() {
   const navigate = useNavigate();
@@ -55,6 +56,16 @@ export default function Results() {
     URL.revokeObjectURL(url);
   };
 
+  const handleRetry = () => {
+    // Navigate back to upload page for retry
+    navigate(createPageUrl('Upload'));
+  };
+
+  const handleNewUpload = () => {
+    // Navigate to upload page for new upload
+    navigate(createPageUrl('Upload'));
+  };
+
   const handleSave = async () => {
     if (record) {
       await base44.entities.UploadHistory.update(record.id, {
@@ -87,6 +98,9 @@ export default function Results() {
     );
   }
 
+  // Check if this is a PDF fallback result
+  const isPDFFallback = record?.extracted_text?.includes('PDF processing encountered a technical issue')
+
   return (
     <div className="min-h-screen px-6 py-16">
       <div className="max-w-7xl mx-auto">
@@ -94,7 +108,7 @@ export default function Results() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-              Extracted Text
+              {isPDFFallback ? 'PDF Processing Issue' : 'Extracted Text'}
             </h1>
             <p className="text-slate-400">
               {record.original_filename} • Confidence: {record.confidence_data?.overall || 0}%
@@ -146,26 +160,51 @@ export default function Results() {
           </div>
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid lg:grid-cols-2 gap-8">
+        {/* PDF Fallback Content */}
+        {isPDFFallback ? (
+          <PDFFallbackResult 
+            record={record} 
+            onRetry={handleRetry}
+            onNewUpload={handleNewUpload}
+          />
+        ) : (
+          /* Main Content Grid */
+          <div className="grid lg:grid-cols-2 gap-8">
           {/* Image Preview */}
           <div className="group relative rounded-3xl bg-gradient-to-br from-cyan-500/10 to-amber-500/10 border border-white/10 backdrop-blur-sm p-8 hover:border-white/20 transition-all duration-500">
             <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600">
-                  <ImageIcon className="w-5 h-5 text-white" />
+                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 shadow-lg">
+                  <ImageIcon className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-white">Original Image</h2>
+                <h2 className="text-xl font-bold text-white">Original Document</h2>
               </div>
               
-              <div className="relative rounded-2xl overflow-hidden bg-slate-900/50 border border-white/5">
-                <img
-                  src={record.image_url}
-                  alt="Original upload"
-                  className="w-full h-auto"
-                />
+              <div className="relative rounded-2xl overflow-hidden bg-slate-900/50 border border-white/5 shadow-lg">
+                {record.image_url ? (
+                  <img
+                    src={record.image_url}
+                    alt="Original upload"
+                    className="w-full h-auto max-h-96 object-contain"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div 
+                  className="w-full h-64 flex items-center justify-center bg-slate-800/50"
+                  style={{ display: record.image_url ? 'none' : 'flex' }}
+                >
+                  <div className="text-center">
+                    <div className="p-4 rounded-full bg-slate-700/50 mb-4 mx-auto w-fit">
+                      <ImageIcon className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <p className="text-slate-400">Document Preview</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -237,7 +276,8 @@ export default function Results() {
               </div>
             </div>
           )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

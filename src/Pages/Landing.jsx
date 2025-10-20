@@ -19,11 +19,6 @@ export default function Landing() {
           <div className="text-center space-y-8">
             {/* Animated headline */}
             <div className="space-y-4">
-              <div className="inline-block animate-fade-in-up">
-                <span className="px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500/20 to-amber-500/20 border border-cyan-500/30 text-cyan-400 text-sm font-medium backdrop-blur-sm">
-                  ✨ Powered by Advanced AI
-                </span>
-              </div>
               
               <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold leading-tight animate-fade-in-up animation-delay-200">
                 <span className="block bg-gradient-to-r from-white via-cyan-200 to-white bg-clip-text text-transparent animate-gradient">

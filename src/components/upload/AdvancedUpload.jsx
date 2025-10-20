@@ -15,6 +15,7 @@ import {
 import { useDropzone } from 'react-dropzone'
 import { base44 } from '../../api/base44Client'
 import { useUserStore } from '../../store/userStore'
+import { processPDFWithOCR, analyzePDF } from '../../utils/pdfUtils'
 import toast from 'react-hot-toast'
 
 const languages = [
@@ -41,16 +42,34 @@ export default function AdvancedUpload() {
     confidenceThreshold: 60,
     enableBatchProcessing: false
   })
+  const [pdfAnalysis, setPdfAnalysis] = useState({})
 
-  const onDrop = useCallback((acceptedFiles) => {
-    const newFiles = acceptedFiles.map(file => ({
-      id: Date.now() + Math.random(),
-      file,
-      status: 'ready',
-      progress: 0,
-      result: null,
-      error: null
+  const onDrop = useCallback(async (acceptedFiles) => {
+    const newFiles = await Promise.all(acceptedFiles.map(async (file) => {
+      const fileObj = {
+        id: Date.now() + Math.random(),
+        file,
+        status: 'ready',
+        progress: 0,
+        result: null,
+        error: null,
+        analysis: null
+      }
+      
+      // Analyze PDF files to determine if they're scanned
+      if (file.type === 'application/pdf') {
+        try {
+          const analysis = await analyzePDF(file)
+          fileObj.analysis = analysis
+          setPdfAnalysis(prev => ({ ...prev, [fileObj.id]: analysis }))
+        } catch (error) {
+          console.error('Error analyzing PDF:', error)
+        }
+      }
+      
+      return fileObj
     }))
+    
     setSelectedFiles(prev => [...prev, ...newFiles])
   }, [])
 
@@ -72,31 +91,70 @@ export default function AdvancedUpload() {
     try {
       setProcessingProgress(prev => ({ ...prev, [fileObj.id]: 0 }))
       
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setProcessingProgress(prev => ({
-          ...prev,
-          [fileObj.id]: Math.min((prev[fileObj.id] || 0) + 10, 90)
-        }))
-      }, 200)
-
       // Update file status
       setSelectedFiles(prev => prev.map(f => 
         f.id === fileObj.id ? { ...f, status: 'processing' } : f
       ))
 
-      // Upload file
-      const { file_url } = await base44.integrations.Core.UploadFile({ 
-        file: fileObj.file 
-      })
+      let result, file_url
 
-      // Extract text
-      const result = await base44.integrations.Core.ExtractDataFromUploadedFile({
-        file_url,
-        file: fileObj.file
-      })
+      // Check if it's a PDF file
+      if (fileObj.file.type === 'application/pdf') {
+        // Process PDF with OCR support
+        const progressCallback = (progress) => {
+          setProcessingProgress(prev => ({ 
+            ...prev, 
+            [fileObj.id]: Math.min(progress.current / progress.total * 100, 95) 
+          }))
+        }
 
-      clearInterval(progressInterval)
+        const pdfResult = await processPDFWithOCR(fileObj.file, {
+          languages: selectedLanguages,
+          progressCallback,
+          maxPages: 10
+        })
+
+        // Upload the original PDF file
+        const uploadResult = await base44.integrations.Core.UploadFile({ 
+          file: fileObj.file 
+        })
+        file_url = uploadResult.file_url
+
+        // Format result to match expected structure
+        result = {
+          output: {
+            text: pdfResult.totalText,
+            confidence: Math.round(pdfResult.totalConfidence),
+            type: pdfResult.type,
+            pages: pdfResult.pages.length,
+            words: pdfResult.totalWords
+          },
+          analysis: pdfResult.analysis
+        }
+      } else {
+        // Process regular image files
+        const progressInterval = setInterval(() => {
+          setProcessingProgress(prev => ({
+            ...prev,
+            [fileObj.id]: Math.min((prev[fileObj.id] || 0) + 10, 90)
+          }))
+        }, 200)
+
+        // Upload file
+        const uploadResult = await base44.integrations.Core.UploadFile({ 
+          file: fileObj.file 
+        })
+        file_url = uploadResult.file_url
+
+        // Extract text
+        result = await base44.integrations.Core.ExtractDataFromUploadedFile({
+          file_url,
+          file: fileObj.file
+        })
+
+        clearInterval(progressInterval)
+      }
+
       setProcessingProgress(prev => ({ ...prev, [fileObj.id]: 100 }))
 
       // Update file with result
@@ -115,7 +173,10 @@ export default function AdvancedUpload() {
         image_url: file_url,
         extracted_text: result.output?.text || "No text detected",
         confidence_data: {
-          overall: result.output?.confidence || 0
+          overall: result.output?.confidence || 0,
+          type: result.output?.type || 'image',
+          pages: result.output?.pages || 1,
+          words: result.output?.words || 0
         },
         language: selectedLanguages.join('+'),
         processing_options: advancedOptions
@@ -124,7 +185,9 @@ export default function AdvancedUpload() {
       setResults(prev => [...prev, { ...historyRecord, fileObj }])
       incrementUsage()
 
-      toast.success(`Successfully processed ${fileObj.file.name}`)
+      const fileType = result.output?.type === 'scanned' ? 'scanned PDF' : 
+                      result.output?.type === 'text_based' ? 'text-based PDF' : 'image'
+      toast.success(`Successfully processed ${fileObj.file.name} (${fileType})`)
 
     } catch (error) {
       setSelectedFiles(prev => prev.map(f => 
@@ -168,66 +231,97 @@ export default function AdvancedUpload() {
     URL.revokeObjectURL(url)
   }
 
-  const FileCard = ({ fileObj }) => (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      className="group relative p-4 rounded-2xl bg-slate-800/50 border border-white/10 backdrop-blur-sm hover:border-white/20 transition-all"
-    >
-      <div className="flex items-start gap-4">
-        <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500/20 to-amber-500/20">
-          <Image className="w-5 h-5 text-cyan-400" />
-        </div>
-        
-        <div className="flex-1 min-w-0">
-          <h4 className="text-white font-medium truncate">{fileObj.file.name}</h4>
-          <p className="text-slate-400 text-sm">
-            {(fileObj.file.size / 1024 / 1024).toFixed(2)} MB
-          </p>
+  const FileCard = ({ fileObj }) => {
+    const analysis = pdfAnalysis[fileObj.id]
+    const isPDF = fileObj.file.type === 'application/pdf'
+    
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        className="group relative p-4 rounded-2xl bg-slate-800/50 border border-white/10 backdrop-blur-sm hover:border-white/20 transition-all"
+      >
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500/20 to-amber-500/20">
+            {isPDF ? <FileText className="w-5 h-5 text-cyan-400" /> : <Image className="w-5 h-5 text-cyan-400" />}
+          </div>
           
-          {fileObj.status === 'processing' && (
-            <div className="mt-2">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-                <span className="text-slate-400 text-sm">Processing...</span>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-white font-medium truncate">{fileObj.file.name}</h4>
+            <p className="text-slate-400 text-sm">
+              {(fileObj.file.size / 1024 / 1024).toFixed(2)} MB
+            </p>
+            
+            {/* PDF Analysis Info */}
+            {isPDF && analysis && (
+              <div className="mt-2 p-2 rounded-lg bg-slate-700/30 border border-slate-600/50">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={`w-2 h-2 rounded-full ${analysis.isScanned ? 'bg-orange-400' : 'bg-green-400'}`} />
+                  <span className="text-xs font-medium text-slate-300">
+                    {analysis.isScanned ? 'Scanned PDF' : 'Text-based PDF'}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-400">
+                  {analysis.totalPages} pages • {analysis.pagesWithText} with text
+                </div>
               </div>
-              <div className="w-full bg-slate-700 rounded-full h-1.5">
-                <div 
-                  className="bg-gradient-to-r from-cyan-500 to-amber-500 h-1.5 rounded-full transition-all duration-300"
-                  style={{ width: `${processingProgress[fileObj.id] || 0}%` }}
-                />
+            )}
+            
+            {fileObj.status === 'processing' && (
+              <div className="mt-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+                  <span className="text-slate-400 text-sm">
+                    {isPDF ? 'Processing PDF...' : 'Processing...'}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-1.5">
+                  <div 
+                    className="bg-gradient-to-r from-cyan-500 to-amber-500 h-1.5 rounded-full transition-all duration-300"
+                    style={{ width: `${processingProgress[fileObj.id] || 0}%` }}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {fileObj.status === 'completed' && (
-            <div className="mt-2 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 text-sm">
-                {fileObj.result?.output?.confidence || 0}% confidence
-              </span>
-            </div>
-          )}
+            {fileObj.status === 'completed' && (
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-green-400 text-sm">
+                    {fileObj.result?.output?.confidence || 0}% confidence
+                  </span>
+                </div>
+                {isPDF && fileObj.result?.output && (
+                  <div className="text-xs text-slate-400">
+                    {fileObj.result.output.type === 'scanned' ? 'OCR processed' : 'Text extracted'} • 
+                    {fileObj.result.output.pages} pages • 
+                    {fileObj.result.output.words} words
+                  </div>
+                )}
+              </div>
+            )}
 
-          {fileObj.status === 'error' && (
-            <div className="mt-2 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400" />
-              <span className="text-red-400 text-sm">{fileObj.error}</span>
-            </div>
-          )}
+            {fileObj.status === 'error' && (
+              <div className="mt-2 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400" />
+                <span className="text-red-400 text-sm">{fileObj.error}</span>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => removeFile(fileObj.id)}
+            className="p-1 rounded-lg hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
+          >
+            <X className="w-4 h-4 text-slate-400" />
+          </button>
         </div>
-
-        <button
-          onClick={() => removeFile(fileObj.id)}
-          className="p-1 rounded-lg hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
-        >
-          <X className="w-4 h-4 text-slate-400" />
-        </button>
-      </div>
-    </motion.div>
-  )
+      </motion.div>
+    )
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">

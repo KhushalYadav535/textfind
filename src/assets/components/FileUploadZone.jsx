@@ -1,10 +1,11 @@
 import React, { useRef, useState } from "react";
 import { Upload, Camera, Image as ImageIcon, FileText } from "lucide-react";
-import { isPDFFile, validatePDFFile, createPDFPreview, getPDFProcessingTips } from "../../utils/pdfUtils";
+import { isPDFFile, validatePDFFile, createPDFPreview, getPDFProcessingTips, analyzePDF } from "../../utils/pdfUtils";
 
 export default function FileUploadZone({ onFileSelect }) {
   const [dragActive, setDragActive] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [pdfAnalysis, setPdfAnalysis] = useState(null);
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
@@ -51,13 +52,17 @@ export default function FileUploadZone({ onFileSelect }) {
         return;
       }
 
-      // Create PDF preview
+      // Analyze PDF type
       try {
+        const analysis = await analyzePDF(file);
+        setPdfAnalysis(analysis);
+        
+        // Create PDF preview
         const previewData = await createPDFPreview(file);
         setPreview(previewData.preview);
         onFileSelect(file);
       } catch (error) {
-        console.error('PDF preview error:', error);
+        console.error('PDF processing error:', error);
         alert('Error processing PDF file. Please try a different file.');
       }
     } else {
@@ -152,21 +157,23 @@ export default function FileUploadZone({ onFileSelect }) {
           <span className="px-3 py-1 rounded-lg bg-white/5">PDF</span>
         </div>
         
-        {/* PDF Help Text */}
-        <div className="mt-4 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
-          <div className="flex items-start gap-3">
-            <FileText className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm text-amber-300 font-semibold mb-2">PDF Processing Tips:</p>
-              <ul className="text-xs text-amber-300 space-y-1">
-                <li>• Ensure PDF contains selectable text (not scanned images)</li>
-                <li>• Avoid password-protected PDFs</li>
-                <li>• Clear, readable fonts work best</li>
-                <li>• For scanned PDFs, try converting to images first</li>
-              </ul>
+        
+        
+        {/* PDF Analysis Results */}
+        {pdfAnalysis && (
+          <div className="mt-4 p-4 rounded-lg bg-slate-700/30 border border-slate-600/50">
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-3 h-3 rounded-full ${pdfAnalysis.isScanned ? 'bg-orange-400' : 'bg-green-400'}`} />
+              <span className="text-sm font-medium text-white">
+                {pdfAnalysis.isScanned ? 'Scanned PDF Detected' : 'Text-based PDF Detected'}
+              </span>
+            </div>
+            <div className="text-xs text-slate-400">
+              {pdfAnalysis.totalPages} pages • {pdfAnalysis.pagesWithText} with text • 
+              {pdfAnalysis.isScanned ? ' OCR will be used' : ' Direct text extraction'}
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

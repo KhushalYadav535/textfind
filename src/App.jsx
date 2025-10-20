@@ -6,6 +6,7 @@ import Layout from './Layout'
 import Landing from './Pages/Landing'
 import Upload from './Pages/Upload'
 import Results from './Pages/Results'
+import Test from './Pages/Test'
 import Dashboard from './components/dashboard/Dashboard'
 import './App.css'
 
@@ -21,6 +22,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/upload" element={<Upload />} />
             <Route path="/results" element={<Results />} />
+            <Route path="/test" element={<Test />} />
           </Routes>
         </Layout>
         <Toaster
