@@ -6,7 +6,7 @@ import Tesseract from 'tesseract.js';
  */
 export const processPDFEnhanced = async (pdfFile, options = {}) => {
   const {
-    languages = ['eng'],
+    languages = ['eng', 'hin'], // Add Hindi support
     maxPages = 10,
     progressCallback = null
   } = options;

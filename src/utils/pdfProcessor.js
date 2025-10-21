@@ -4,6 +4,7 @@ import Tesseract from 'tesseract.js';
 import { processPDFFallback } from './pdfProcessorFallback.js';
 import { processPDFSimple } from './simplePDFProcessor.js';
 import { processPDFEnhanced } from './enhancedPDFProcessor.js';
+import { processPDFWithHindi, containsHindiText } from './hindiTextProcessor.js';
 
 // Configure PDF.js worker - Use local worker file
 if (typeof window !== 'undefined') {
@@ -160,7 +161,7 @@ export const convertPDFToImages = async (pdfFile, options = {}) => {
  */
 export const extractTextFromImages = async (images, options = {}) => {
   const {
-    languages = ['eng'],
+    languages = ['eng', 'hin'], // Add Hindi support by default
     progressCallback = null
   } = options;
   
@@ -228,10 +229,11 @@ export const extractTextFromImages = async (images, options = {}) => {
  */
 export const processPDF = async (pdfFile, options = {}) => {
   const {
-    languages = ['eng'],
+    languages = ['eng', 'hin'], // Add Hindi support by default
     maxPages = 10,
     progressCallback = null,
-    forceOCR = false
+    forceOCR = false,
+    autoDetectLanguage = true
   } = options;
   
   try {
@@ -241,6 +243,39 @@ export const processPDF = async (pdfFile, options = {}) => {
     }
     
     const analysis = await analyzePDFType(pdfFile);
+    
+    // Step 1.5: Try a quick Hindi detection if auto-detect is enabled
+    if (autoDetectLanguage && !forceOCR) {
+      try {
+        if (progressCallback) {
+          progressCallback({ status: 'detecting_language', message: 'Detecting language...' });
+        }
+        
+        // Quick test with first page to detect Hindi content
+        const testImages = await convertPDFToImages(pdfFile, { maxPages: 1 });
+        if (testImages.length > 0) {
+          const testResult = await extractTextFromImages(testImages, { 
+            languages: ['hin', 'eng'], 
+            progressCallback: null 
+          });
+          
+          if (testResult.length > 0 && containsHindiText(testResult[0].text)) {
+            if (progressCallback) {
+              progressCallback({ status: 'hindi_detected', message: 'Hindi text detected, using specialized processing...' });
+            }
+            
+            // Use specialized Hindi processing
+            return await processPDFWithHindi(pdfFile, { 
+              maxPages, 
+              progressCallback,
+              useHindiOnly: false 
+            });
+          }
+        }
+      } catch (error) {
+        console.log('Language detection failed, proceeding with standard processing:', error.message);
+      }
+    }
     
     if (!forceOCR && analysis.hasText && analysis.confidence > 70) {
       // PDF has selectable text, use standard extraction
