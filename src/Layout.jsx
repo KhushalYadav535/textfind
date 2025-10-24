@@ -49,7 +49,11 @@ export default function Layout({ children, currentPageName }) {
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-amber-500 rounded-xl blur-lg opacity-60 group-hover:opacity-100 transition-opacity" />
                 <div className="relative bg-gradient-to-r from-cyan-500 to-amber-500 p-2 rounded-xl">
-                  <Sparkles className="w-6 h-6 text-white" />
+                  <img 
+                    src="/logo.jpeg" 
+                    alt="TextMitra Logo" 
+                    className="w-6 h-6 rounded object-cover"
+                  />
                 </div>
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-amber-400 bg-clip-text text-transparent">

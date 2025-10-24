@@ -17,6 +17,20 @@ export default function Landing() {
       <section className="relative px-6 py-32 md:py-40">
         <div className="max-w-6xl mx-auto">
           <div className="text-center space-y-8">
+            {/* Logo */}
+            <div className="flex justify-center mb-8 animate-fade-in-up animation-delay-100">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-amber-500 rounded-2xl blur-lg opacity-60" />
+                <div className="relative bg-gradient-to-r from-cyan-500 to-amber-500 p-4 rounded-2xl">
+                  <img 
+                    src="/logo.jpeg" 
+                    alt="TextMitra Logo" 
+                    className="w-16 h-16 rounded-lg object-cover"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Animated headline */}
             <div className="space-y-4">
               

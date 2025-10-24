@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { processPDF, processPDFWithHindi } from '../../utils/pdfProcessor.js';
+import { processPDF } from '../../utils/pdfProcessor.js';
 import { processPDFWithHindi as processHindi } from '../../utils/hindiTextProcessor.js';
 
 const HindiTextTest = () => {
