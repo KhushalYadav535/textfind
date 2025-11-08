@@ -52,10 +52,32 @@ export const extractTextWithGemini = async (file, options = {}) => {
       progressCallback({ status: 'uploading', progress: 30, message: 'Sending to Gemini OCR...' });
     }
 
+    // Determine mime type based on file type
+    let mimeType = 'application/pdf'; // default
+    if (file instanceof File || file instanceof Blob) {
+      if (file.type) {
+        if (file.type.startsWith('image/')) {
+          // Map image types correctly
+          if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
+            mimeType = 'image/jpeg';
+          } else if (file.type === 'image/png') {
+            mimeType = 'image/png';
+          } else if (file.type === 'image/webp') {
+            mimeType = 'image/webp';
+          } else {
+            mimeType = file.type; // Use the file's actual type
+          }
+        } else if (file.type === 'application/pdf') {
+          mimeType = 'application/pdf';
+        }
+      }
+    }
+
     // Prepare payload for webhook
     const payload = {
       image: base64Data, // Using 'image' field as per n8n workflow
-      apiKey: apiKey
+      apiKey: apiKey,
+      fileType: mimeType // Add fileType to help n8n workflow
     };
 
     // Call n8n webhook
@@ -71,24 +93,39 @@ export const extractTextWithGemini = async (file, options = {}) => {
       progressCallback({ status: 'processing', progress: 70, message: 'Processing with Gemini...' });
     }
 
+    // Check response status
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      throw new Error(`HTTP ${response.status}: ${errorText || 'Unknown error'}`);
     }
 
-    const result = await response.json();
+    // Get response text first to check if it's empty
+    const responseText = await response.text();
+    
+    if (!responseText || responseText.trim().length === 0) {
+      throw new Error('Empty response from webhook. Please check n8n workflow configuration.');
+    }
+
+    // Try to parse JSON
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Response text:', responseText);
+      throw new Error(`Invalid JSON response from webhook: ${parseError.message}. Response: ${responseText.substring(0, 200)}`);
+    }
 
     if (progressCallback) {
       progressCallback({ status: 'complete', progress: 100, message: 'Complete!' });
     }
 
     // Check if request was successful
-    if (!result.success) {
-      throw new Error(result.error || 'OCR processing failed');
+    if (!result || (result.success === false)) {
+      throw new Error(result?.error || result?.message || 'OCR processing failed');
     }
 
     // Extract text from response
-    const extractedText = result.extractedText || '';
+    const extractedText = result.extractedText || result.text || '';
 
     // Return in format compatible with existing code
     return {

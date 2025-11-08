@@ -146,8 +146,28 @@ export default function SmartTextFormatter({
   }
 
   const renderFormattedText = (rawText) => {
-    return rawText
-      // Headers with better styling
+    let formatted = rawText;
+    
+    // Markdown Tables - Convert to HTML tables with proper styling
+    const tableRegex = /(\|.+\|)\n(\|[-:\s|]+\|)\n((?:\|.+\|\n?)+)/g;
+    formatted = formatted.replace(tableRegex, (match, header, separator, rows) => {
+      // Parse header
+      const headers = header.split('|').map(h => h.trim()).filter(h => h);
+      const headerCells = headers.map(h => `<th class="px-4 py-2 bg-slate-700 text-left font-semibold text-cyan-400 border-b-2 border-cyan-500">${h}</th>`).join('');
+      
+      // Parse rows
+      const rowLines = rows.trim().split('\n').filter(line => line.trim());
+      const tableRows = rowLines.map(row => {
+        const cells = row.split('|').map(c => c.trim()).filter(c => c);
+        const rowCells = cells.map(c => `<td class="px-4 py-2 border-b border-slate-700 text-slate-300">${c}</td>`).join('');
+        return `<tr class="hover:bg-slate-800/50">${rowCells}</tr>`;
+      }).join('');
+      
+      return `<div class="overflow-x-auto my-4"><table class="min-w-full border-collapse border border-slate-600 rounded-lg overflow-hidden"><thead><tr>${headerCells}</tr></thead><tbody>${tableRows}</tbody></table></div>`;
+    });
+    
+    // Headers with better styling
+    formatted = formatted
       .replace(/^### (.*$)/gim, '<h3 class="text-xl font-bold text-cyan-400 mb-3 mt-6 border-l-4 border-cyan-400 pl-4">$1</h3>')
       .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold text-amber-400 mb-4 mt-8 border-l-4 border-amber-400 pl-4">$1</h2>')
       .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold text-purple-400 mb-6 mt-10 border-l-4 border-purple-400 pl-4">$1</h1>')
@@ -169,8 +189,18 @@ export default function SmartTextFormatter({
       .replace(/^1\. (.*$)/gim, '<li class="list-decimal list-inside text-slate-300 my-2 ml-4">$1</li>')
       .replace(/^- (.*$)/gim, '<li class="list-disc list-inside text-slate-300 my-2 ml-4 marker:text-cyan-400">$1</li>')
       
-      // Line breaks with better spacing
-      .replace(/\n/g, '<br>')
+      // Preserve multiple line breaks (paragraphs)
+      .replace(/\n\n+/g, '</p><p class="mb-4 text-slate-300">')
+      
+      // Line breaks
+      .replace(/\n/g, '<br>');
+    
+    // Wrap in paragraph tags if not already wrapped
+    if (!formatted.startsWith('<')) {
+      formatted = `<p class="mb-4 text-slate-300">${formatted}</p>`;
+    }
+    
+    return formatted;
   }
 
   const handleSave = () => {
