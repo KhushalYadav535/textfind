@@ -1,6 +1,6 @@
 // PDF processing utilities for both text-based and scanned PDFs
 import * as pdfjsLib from 'pdfjs-dist';
-import Tesseract from 'tesseract.js';
+import { extractTextWithGemini, extractTextFromMultipleFiles } from '../api/geminiOcrClient.js';
 import { processPDFFallback } from './pdfProcessorFallback.js';
 import { processPDFSimple } from './simplePDFProcessor.js';
 import { processPDFEnhanced } from './enhancedPDFProcessor.js';
@@ -154,71 +154,71 @@ export const convertPDFToImages = async (pdfFile, options = {}) => {
 };
 
 /**
- * Extract text from images using OCR
+ * Extract text from images using Gemini OCR
  * @param {Array} images - Array of image objects from convertPDFToImages
  * @param {Object} options - OCR options
  * @returns {Promise<Array<{pageNumber: number, text: string, confidence: number}>>}
  */
 export const extractTextFromImages = async (images, options = {}) => {
+  // Import API key from environment or use provided one
+  const defaultApiKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : null;
+  
   const {
-    languages = ['eng', 'hin'], // Add Hindi support by default
-    progressCallback = null
+    languages = ['eng', 'hin'], // Language parameter kept for compatibility, but Gemini handles multiple languages automatically
+    progressCallback = null,
+    apiKey = defaultApiKey
   } = options;
   
   const results = [];
   const totalImages = images.length;
   
-  for (let i = 0; i < images.length; i++) {
-    const image = images[i];
-    
-    try {
-      if (progressCallback) {
-        progressCallback({
-          current: i + 1,
-          total: totalImages,
-          pageNumber: image.pageNumber,
-          status: 'processing'
-        });
-      }
-      
-      const { data: { text, confidence } } = await Tesseract.recognize(
-        image.imageData,
-        languages.join('+'),
-        {
-          logger: m => {
-            if (progressCallback && m.status === 'recognizing text') {
-              progressCallback({
-                current: i + 1,
-                total: totalImages,
-                pageNumber: image.pageNumber,
-                status: 'recognizing',
-                progress: Math.round(m.progress * 100)
-              });
-            }
-          }
-        }
-      );
-      
-      results.push({
-        pageNumber: image.pageNumber,
-        text: text.trim(),
-        confidence: Math.round(confidence),
-        wordCount: text.trim().split(/\s+/).length
-      });
-      
-    } catch (error) {
-      console.error(`Error processing page ${image.pageNumber}:`, error);
-      results.push({
-        pageNumber: image.pageNumber,
-        text: '',
-        confidence: 0,
-        wordCount: 0,
-        error: error.message
-      });
+  // Convert image data URLs to File/Blob objects for Gemini OCR
+  const imageFiles = images.map(image => {
+    // Convert data URL to blob
+    const base64Data = image.imageData.split(',')[1];
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
     }
-  }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/png' });
+    return {
+      file: blob,
+      pageNumber: image.pageNumber
+    };
+  });
   
-  return results;
+  // Use Gemini OCR to process all images
+  try {
+    const ocrResults = await extractTextFromMultipleFiles(imageFiles, {
+      apiKey,
+      progressCallback: (progress) => {
+        if (progressCallback) {
+          progressCallback({
+            current: progress.current || 0,
+            total: progress.total || totalImages,
+            pageNumber: progress.pageNumber || 0,
+            status: progress.status || 'processing',
+            progress: progress.progress || 0,
+            message: progress.message
+          });
+        }
+      }
+    });
+    
+    return ocrResults;
+  } catch (error) {
+    console.error('Error processing images with Gemini OCR:', error);
+    // Return empty results for all pages on error
+    return images.map(image => ({
+      pageNumber: image.pageNumber,
+      text: '',
+      confidence: 0,
+      wordCount: 0,
+      error: error.message
+    }));
+  }
 };
 
 /**
@@ -228,97 +228,109 @@ export const extractTextFromImages = async (images, options = {}) => {
  * @returns {Promise<Object>} Processing result
  */
 export const processPDF = async (pdfFile, options = {}) => {
+  // Import API key from environment or use provided one
+  const defaultApiKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : null;
+  
   const {
-    languages = ['eng', 'hin'], // Add Hindi support by default
+    languages = ['eng', 'hin'], // Language parameter kept for compatibility
     maxPages = 10,
     progressCallback = null,
     forceOCR = false,
-    autoDetectLanguage = true
+    autoDetectLanguage = true,
+    apiKey = defaultApiKey
   } = options;
   
   try {
-    // Step 1: Analyze PDF type
+    // Step 1: Try direct PDF processing with Gemini (most efficient)
+    // Gemini can handle PDFs directly, so we try that first
+    if (progressCallback) {
+      progressCallback({ status: 'processing', message: 'Processing PDF with Gemini OCR...' });
+    }
+    
+    try {
+      // Send entire PDF directly to Gemini OCR
+      const result = await extractTextWithGemini(pdfFile, {
+        apiKey,
+        progressCallback: (progress) => {
+          if (progressCallback) {
+            progressCallback({
+              status: progress.status || 'processing',
+              message: progress.message || 'Processing PDF...',
+              progress: progress.progress || 0
+            });
+          }
+        }
+      });
+      
+      const extractedText = result.data.text.trim();
+      
+      if (extractedText && extractedText.length > 10) {
+        // Successfully extracted text directly from PDF
+        if (progressCallback) {
+          progressCallback({ status: 'complete', message: 'PDF processed successfully!' });
+        }
+        
+        const wordCount = extractedText.split(/\s+/).filter(w => w.length > 0).length;
+        
+        return {
+          type: 'gemini_direct',
+          analysis: {
+            isScanned: false,
+            hasText: true,
+            confidence: result.data.confidence,
+            totalPages: 1, // Gemini processes all pages at once
+            pagesWithText: 1
+          },
+          pages: [{
+            pageNumber: 1,
+            text: extractedText,
+            confidence: result.data.confidence,
+            wordCount: wordCount
+          }],
+          totalText: extractedText,
+          totalConfidence: result.data.confidence,
+          totalWords: wordCount
+        };
+      }
+    } catch (directError) {
+      console.log('Direct PDF processing failed, falling back to page-by-page processing:', directError.message);
+    }
+    
+    // Step 2: Fallback to page-by-page processing if direct processing fails
     if (progressCallback) {
       progressCallback({ status: 'analyzing', message: 'Analyzing PDF type...' });
     }
     
     const analysis = await analyzePDFType(pdfFile);
     
-    // Step 1.5: Try a quick Hindi detection if auto-detect is enabled
-    if (autoDetectLanguage && !forceOCR) {
-      try {
-        if (progressCallback) {
-          progressCallback({ status: 'detecting_language', message: 'Detecting language...' });
-        }
-        
-        // Quick test with first page to detect Hindi content
-        const testImages = await convertPDFToImages(pdfFile, { maxPages: 1 });
-        if (testImages.length > 0) {
-          const testResult = await extractTextFromImages(testImages, { 
-            languages: ['hin', 'eng'], 
-            progressCallback: null 
-          });
-          
-          if (testResult.length > 0 && containsHindiText(testResult[0].text)) {
-            if (progressCallback) {
-              progressCallback({ status: 'hindi_detected', message: 'Hindi text detected, using specialized processing...' });
-            }
-            
-            // Use specialized Hindi processing
-            return await processPDFWithHindi(pdfFile, { 
-              maxPages, 
-              progressCallback,
-              useHindiOnly: false 
-            });
-          }
-        }
-      } catch (error) {
-        console.log('Language detection failed, proceeding with standard processing:', error.message);
-      }
+    if (progressCallback) {
+      progressCallback({ status: 'converting', message: 'Converting PDF to images...' });
     }
     
-    if (!forceOCR && analysis.hasText && analysis.confidence > 70) {
-      // PDF has selectable text, use standard extraction
-      if (progressCallback) {
-        progressCallback({ status: 'extracting_text', message: 'Extracting text from PDF...' });
-      }
-      
-      // For now, we'll still convert to images for consistency
-      // In a real implementation, you might want to use a different approach
-      const images = await convertPDFToImages(pdfFile, { maxPages });
-      const ocrResults = await extractTextFromImages(images, { languages, progressCallback });
-      
-      return {
-        type: 'text_based',
-        analysis,
-        pages: ocrResults,
-        totalText: ocrResults.map(r => r.text).join('\n\n'),
-        totalConfidence: ocrResults.reduce((sum, r) => sum + r.confidence, 0) / ocrResults.length,
-        totalWords: ocrResults.reduce((sum, r) => sum + r.wordCount, 0)
-      };
-    } else {
-      // PDF is scanned or has insufficient text, use OCR
-      if (progressCallback) {
-        progressCallback({ status: 'converting', message: 'Converting PDF to images...' });
-      }
-      
-      const images = await convertPDFToImages(pdfFile, { maxPages });
-      
-      if (progressCallback) {
-        progressCallback({ status: 'ocr_processing', message: 'Running OCR on images...' });
-      }
-      
-      const ocrResults = await extractTextFromImages(images, { languages, progressCallback });
-      
-      return {
-        type: 'scanned',
-        analysis,
-        pages: ocrResults,
-        totalText: ocrResults.map(r => r.text).join('\n\n'),
-        totalConfidence: ocrResults.reduce((sum, r) => sum + r.confidence, 0) / ocrResults.length,
-        totalWords: ocrResults.reduce((sum, r) => sum + r.wordCount, 0)
-      };
+    // Convert PDF pages to images
+    const images = await convertPDFToImages(pdfFile, { maxPages });
+    
+    if (progressCallback) {
+      progressCallback({ status: 'ocr_processing', message: 'Running Gemini OCR on pages...' });
     }
+    
+    // Process each page with Gemini OCR
+    const ocrResults = await extractTextFromImages(images, { 
+      languages, 
+      progressCallback,
+      apiKey 
+    });
+    
+    return {
+      type: analysis.hasText ? 'text_based' : 'scanned',
+      analysis,
+      pages: ocrResults,
+      totalText: ocrResults.map(r => r.text).join('\n\n'),
+      totalConfidence: ocrResults.length > 0 
+        ? ocrResults.reduce((sum, r) => sum + r.confidence, 0) / ocrResults.length 
+        : 0,
+      totalWords: ocrResults.reduce((sum, r) => sum + r.wordCount, 0)
+    };
   } catch (error) {
     console.error('Error processing PDF:', error);
     

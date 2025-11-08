@@ -1,6 +1,6 @@
-import Tesseract from 'tesseract.js';
+import { extractTextWithGemini } from './geminiOcrClient.js';
 
-// Real OCR client with Tesseract.js
+// Gemini OCR client using n8n webhook
 export const base44 = {
   integrations: {
     Core: {
@@ -31,82 +31,32 @@ export const base44 = {
 
           // For PDF files, show a helpful message
           if (isPDF) {
-            console.log('PDF file detected, processing with Tesseract.js...');
+            console.log('PDF file detected, processing with Gemini OCR...');
+          } else {
+            console.log('Image file detected, processing with Gemini OCR...');
           }
 
-          // Real OCR extraction using Tesseract.js
-          let ocrResult;
+          // Get API key from environment or use empty string (will be handled by geminiOcrClient)
+          const apiKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : '';
           
-          try {
-            if (isPDF) {
-              // For PDF files, try with different options
-              console.log('Attempting PDF OCR with Tesseract.js...');
-              ocrResult = await Tesseract.recognize(
-                file || file_url,
-                'eng', // Start with English only for PDFs
-                {
-                  logger: m => {
-                    console.log(`PDF OCR Status: ${m.status} - Progress: ${Math.round(m.progress * 100)}%`);
-                  },
-                  // Additional options for PDF processing
-                  tessedit_pageseg_mode: '1', // Automatic page segmentation with OSD
-                  preserve_interword_spaces: '1'
-                }
-              );
-            } else {
-              // For images, use normal processing
-              ocrResult = await Tesseract.recognize(
-                file || file_url,
-                'eng+hin', // English + Hindi support for images
-                {
-                  logger: m => {
-                    if (m.status === 'recognizing text') {
-                      console.log(`Image OCR Progress: ${Math.round(m.progress * 100)}%`);
-                    }
-                    if (m.status === 'loading tesseract core') {
-                      console.log('Loading Tesseract core...');
-                    }
-                    if (m.status === 'initializing tesseract') {
-                      console.log('Initializing Tesseract...');
-                    }
-                  }
-                }
-              );
+          // Use Gemini OCR via n8n webhook
+          const result = await extractTextWithGemini(file, {
+            apiKey: apiKey || undefined, // Pass undefined if empty to let geminiOcrClient handle it
+            progressCallback: (progress) => {
+              console.log(`Gemini OCR Status: ${progress.status} - ${progress.message || ''}`);
             }
-          } catch (tesseractError) {
-            console.error('Tesseract processing error:', tesseractError);
-            
-            if (isPDF) {
-              // If PDF fails, try with image-like processing
-              console.log('Retrying PDF with image processing mode...');
-              ocrResult = await Tesseract.recognize(
-                file || file_url,
-                'eng',
-                {
-                  logger: m => {
-                    console.log(`PDF Retry Status: ${m.status} - Progress: ${Math.round(m.progress * 100)}%`);
-                  },
-                  tessedit_pageseg_mode: '6', // Uniform block of text
-                  tessedit_ocr_engine_mode: '1' // Neural nets LSTM engine only
-                }
-              );
-            } else {
-              throw tesseractError;
-            }
-          }
+          });
           
-          const { data: { text, confidence } } = ocrResult;
-          
-          const extractedText = text.trim();
+          const extractedText = result.data.text.trim();
           
           if (!extractedText || extractedText.length < 3) {
             return {
               status: "success",
               output: {
                 text: isPDF 
-                  ? "No text could be extracted from this PDF. The PDF might be scanned as images or contain only images. Try uploading a PDF with selectable text or convert it to images first."
+                  ? "No text could be extracted from this PDF. The PDF might contain only images or be corrupted."
                   : "No text detected in the image. Please ensure the image contains clear, readable text.",
-                confidence: Math.round(confidence)
+                confidence: Math.round(result.data.confidence)
               }
             };
           }
@@ -115,30 +65,29 @@ export const base44 = {
             status: "success",
             output: {
               text: extractedText,
-              confidence: Math.round(confidence)
+              confidence: Math.round(result.data.confidence)
             }
           };
         } catch (error) {
-          console.error('OCR Error:', error);
+          console.error('Gemini OCR Error:', error);
           
           // Provide specific error messages based on error type
           let errorMessage = "Error processing the file. ";
           
-          if (error.message?.includes('Invalid image')) {
-            errorMessage += "The file format might not be supported or the file is corrupted.";
-          } else if (error.message?.includes('network')) {
-            errorMessage += "Network error occurred while processing.";
+          if (error.message?.includes('API key')) {
+            errorMessage += "Gemini API key is required. Please configure VITE_GEMINI_API_KEY environment variable.";
+          } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+            errorMessage += "Network error occurred while processing. Please check your internet connection.";
+          } else if (error.message?.includes('HTTP')) {
+            errorMessage += `Server error: ${error.message}`;
           } else if (file?.type === 'application/pdf') {
             errorMessage += "PDF processing failed. This might be because:\n";
-            errorMessage += "• The PDF contains only scanned images (not selectable text)\n";
             errorMessage += "• The PDF is password-protected or corrupted\n";
-            errorMessage += "• The PDF has complex formatting\n\n";
-            errorMessage += "Try:\n";
-            errorMessage += "• Converting the PDF to images first\n";
-            errorMessage += "• Using a PDF with selectable text\n";
-            errorMessage += "• Uploading individual pages as images";
+            errorMessage += "• The PDF is too large\n";
+            errorMessage += "• Network connection issues\n\n";
+            errorMessage += "Please try again or use a different PDF file.";
           } else {
-            errorMessage += "Please try with a different file or check if the file contains clear, readable text.";
+            errorMessage += error.message || "Please try with a different file or check if the file contains clear, readable text.";
           }
           
           return {

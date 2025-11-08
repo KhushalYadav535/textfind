@@ -1,5 +1,5 @@
 // Specialized Hindi text processing utilities
-import Tesseract from 'tesseract.js';
+import { extractTextFromMultipleFiles } from '../api/geminiOcrClient.js';
 
 /**
  * Enhanced Hindi text extraction with better OCR settings
@@ -32,37 +32,47 @@ export const extractHindiTextFromImages = async (images, options = {}) => {
         });
       }
       
-      // Enhanced OCR settings for Hindi text
-      const { data: { text, confidence } } = await Tesseract.recognize(
-        image.imageData,
-        languages.join('+'),
-        {
-          logger: m => {
-            if (progressCallback && m.status === 'recognizing text') {
-              progressCallback({
-                current: i + 1,
-                total: totalImages,
-                pageNumber: image.pageNumber,
-                status: 'recognizing_hindi',
-                progress: Math.round(m.progress * 100)
-              });
-            }
-          },
-          // Enhanced settings for better Hindi recognition
-          tessedit_char_whitelist: 'अआइईउऊऋएऐओऔकखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसहक्षत्रज्ञ०१२३४५६७८९ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?;:()[]{}"\'',
-          tessedit_pageseg_mode: '1', // Automatic page segmentation with OSD
-          preserve_interword_spaces: '1'
+      // Convert image data URL to blob for Gemini OCR
+      const base64Data = image.imageData.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let j = 0; j < byteCharacters.length; j++) {
+        byteNumbers[j] = byteCharacters.charCodeAt(j);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/png' });
+      
+      // Use Gemini OCR for Hindi text extraction
+      // Gemini automatically handles multiple languages including Hindi
+      const result = await extractTextFromMultipleFiles([{
+        file: blob,
+        pageNumber: image.pageNumber
+      }], {
+        progressCallback: (progress) => {
+          if (progressCallback) {
+            progressCallback({
+              current: i + 1,
+              total: totalImages,
+              pageNumber: image.pageNumber,
+              status: 'recognizing_hindi',
+              progress: progress.progress || 0,
+              message: progress.message
+            });
+          }
         }
-      );
+      });
+      
+      // Get the first result (we're processing one image at a time)
+      const ocrResult = result[0] || { text: '', confidence: 0 };
       
       // Clean up the extracted text
-      const cleanedText = cleanHindiText(text);
+      const cleanedText = cleanHindiText(ocrResult.text);
       
       results.push({
         pageNumber: image.pageNumber,
         text: cleanedText,
-        confidence: Math.round(confidence),
-        wordCount: cleanedText.trim().split(/\s+/).length,
+        confidence: Math.round(ocrResult.confidence || 95), // Gemini doesn't return confidence, so we estimate high
+        wordCount: cleanedText.trim().split(/\s+/).filter(w => w.length > 0).length,
         language: 'hindi'
       });
       

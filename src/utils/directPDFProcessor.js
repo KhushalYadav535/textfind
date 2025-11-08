@@ -1,5 +1,5 @@
 // Direct PDF processing without external dependencies
-import Tesseract from 'tesseract.js';
+import { extractTextWithGemini, extractTextFromMultipleFiles } from '../api/geminiOcrClient.js';
 
 /**
  * Convert PDF to images using Canvas API (no PDF.js dependency)
@@ -90,16 +90,26 @@ export const processPDFDirect = async (pdfFile, options = {}) => {
       }
       
       try {
-        const { data: { text, confidence } } = await Tesseract.recognize(
-          image.imageData,
-          languages.join('+')
-        );
+        // Convert image data URL to blob
+        const base64Data = image.imageData.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'image/png' });
+        
+        // Use Gemini OCR
+        const result = await extractTextWithGemini(blob, {
+          progressCallback: null
+        });
         
         results.push({
           pageNumber: image.pageNumber,
-          text: text.trim(),
-          confidence: Math.round(confidence),
-          wordCount: text.trim().split(/\s+/).length
+          text: result.data.text.trim(),
+          confidence: Math.round(result.data.confidence),
+          wordCount: result.data.text.trim().split(/\s+/).filter(w => w.length > 0).length
         });
       } catch (error) {
         console.error(`Error processing page ${image.pageNumber}:`, error);
