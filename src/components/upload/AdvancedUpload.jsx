@@ -167,10 +167,25 @@ export default function AdvancedUpload() {
         } : f
       ))
 
+      // Convert file to base64 for permanent storage
+      let fileDataUrl = null;
+      try {
+        fileDataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result); // This will be data URL (data:image/jpeg;base64,...)
+          reader.onerror = reject;
+          reader.readAsDataURL(fileObj.file);
+        });
+      } catch (error) {
+        console.error('Error converting file to base64:', error);
+      }
+
       // Save to history
       const historyRecord = await base44.entities.UploadHistory.create({
         original_filename: fileObj.file.name,
-        image_url: file_url,
+        image_url: file_url, // Keep blob URL for immediate use
+        file_data_url: fileDataUrl, // Store base64 data URL for permanent preview
+        file_type: fileObj.file.type, // Store file type
         extracted_text: result.output?.text || "No text detected",
         confidence_data: {
           overall: result.output?.confidence || 0,

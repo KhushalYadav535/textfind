@@ -91,7 +91,7 @@ export default function Upload() {
           analysis: pdfResult.analysis
         };
       } else {
-        // Process regular image files with the old method
+        // Process regular image files
         setProcessingStatus('Processing image...');
         
         // Progress animation for OCR processing
@@ -108,11 +108,11 @@ export default function Upload() {
         const uploadResult = await base44.integrations.Core.UploadFile({ file });
         file_url = uploadResult.file_url;
 
-        // Step 2: Extract text using real OCR
+        // Step 2: Extract text using Gemini OCR
         setProgress(50);
         result = await base44.integrations.Core.ExtractDataFromUploadedFile({
           file_url,
-          file: file // Pass the actual file for Tesseract.js
+          file: file
         });
 
         clearInterval(progressInterval);
@@ -122,10 +122,25 @@ export default function Upload() {
       setProcessingStatus('Complete!');
 
       if (result.status === "success" && result.output) {
+        // Convert file to base64 for permanent storage (works for both images and PDFs)
+        let fileDataUrl = null;
+        try {
+          fileDataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result); // This will be data URL (data:image/jpeg;base64,... or data:application/pdf;base64,...)
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        } catch (error) {
+          console.error('Error converting file to base64:', error);
+        }
+
         // Save to history
         const historyRecord = await base44.entities.UploadHistory.create({
           original_filename: file.name,
-          image_url: file_url,
+          image_url: file_url, // Keep blob URL for immediate use
+          file_data_url: fileDataUrl, // Store base64 data URL for permanent preview
+          file_type: file.type, // Store file type
           extracted_text: result.output.text || "No text detected",
           confidence_data: {
             overall: result.output.confidence || 0,

@@ -183,26 +183,59 @@ export default function Results() {
               </div>
               
               <div className="relative rounded-2xl overflow-hidden bg-slate-900/50 border border-white/5 shadow-lg">
-                {record.image_url ? (
-                  <img
-                    src={record.image_url}
-                    alt="Original upload"
-                    className="w-full h-auto max-h-96 object-contain"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'flex';
-                    }}
-                  />
+                {/* Try to use file_data_url first (base64), then fallback to image_url (blob URL) */}
+                {(record.file_data_url || record.image_url) ? (
+                  record.file_type === 'application/pdf' ? (
+                    // PDF Preview using embed or iframe
+                    <div className="w-full h-96 bg-white">
+                      <embed
+                        src={record.file_data_url || record.image_url}
+                        type="application/pdf"
+                        className="w-full h-full"
+                        onError={(e) => {
+                          // If PDF fails to load, show placeholder
+                          e.target.style.display = 'none';
+                          const placeholder = e.target.parentElement.parentElement.querySelector('.preview-placeholder');
+                          if (placeholder) {
+                            placeholder.style.display = 'flex';
+                          }
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    // Image Preview
+                    <img
+                      src={record.file_data_url || record.image_url}
+                      alt="Original upload"
+                      className="w-full h-auto max-h-96 object-contain bg-white"
+                      onError={(e) => {
+                        // If image fails to load, show placeholder
+                        e.target.style.display = 'none';
+                        const placeholder = e.target.parentElement.querySelector('.preview-placeholder');
+                        if (placeholder) {
+                          placeholder.style.display = 'flex';
+                        }
+                      }}
+                      onLoad={(e) => {
+                        // Hide placeholder when image loads successfully
+                        const placeholder = e.target.parentElement.querySelector('.preview-placeholder');
+                        if (placeholder) {
+                          placeholder.style.display = 'none';
+                        }
+                      }}
+                    />
+                  )
                 ) : null}
                 <div 
-                  className="w-full h-64 flex items-center justify-center bg-slate-800/50"
-                  style={{ display: record.image_url ? 'none' : 'flex' }}
+                  className="preview-placeholder w-full min-h-64 flex items-center justify-center bg-slate-800/50"
+                  style={{ display: (record.file_data_url || record.image_url) ? 'none' : 'flex' }}
                 >
                   <div className="text-center">
                     <div className="p-4 rounded-full bg-slate-700/50 mb-4 mx-auto w-fit">
                       <ImageIcon className="w-8 h-8 text-slate-400" />
                     </div>
                     <p className="text-slate-400">Document Preview</p>
+                    <p className="text-slate-500 text-sm mt-2">No preview available</p>
                   </div>
                 </div>
               </div>
