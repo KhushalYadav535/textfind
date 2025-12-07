@@ -3,7 +3,7 @@
  */
 
 // Configuration - Get from environment variables
-const NOVA_WEBHOOK_URL = import.meta.env?.VITE_NOVA_WEBHOOK_URL || 'https://n8n.srv980418.hstgr.cloud/webhook-test/nova-ocr';
+const NOVA_WEBHOOK_URL = import.meta.env?.VITE_NOVA_WEBHOOK_URL || 'https://n8n.srv980418.hstgr.cloud/webhook/nova-ocr';
 const NOVA_API_KEY = import.meta.env?.VITE_NOVA_API_KEY || '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';
 
 /**
@@ -113,7 +113,7 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
         errorMessage += '\n\n⚠️ Webhook not found in n8n. Please check:';
         errorMessage += '\n1. Open your n8n workflow and make sure it is ACTIVE (not in test mode)';
         errorMessage += '\n2. Click "Execute workflow" button if you see test mode message';
-        errorMessage += '\n3. Verify the webhook path in n8n matches: /webhook-test/nova-ocr';
+        errorMessage += '\n3. Verify the webhook path in n8n matches: /webhook/nova-ocr';
         errorMessage += '\n4. Or try using webhook ID format: /webhook/{webhook-id}';
         errorMessage += '\n5. Current webhook URL: ' + NOVA_WEBHOOK_URL;
         
