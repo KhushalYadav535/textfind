@@ -80,12 +80,16 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
       fileType: mimeType // Add fileType to help n8n workflow
     };
 
-    // Determine the webhook URL (use proxy in development to avoid CORS)
+    // Determine the webhook URL (use proxy to avoid CORS in both dev and production)
     const isDev = import.meta.env.DEV || (typeof window !== 'undefined' && window.location.hostname === 'localhost');
+    const isProduction = typeof window !== 'undefined' && 
+                        (window.location.hostname === 'www.textmitra.com' || 
+                         window.location.hostname === 'textmitra.com');
     
-    // Use proxy in development to avoid CORS issues
+    // Use proxy to avoid CORS issues (works in both dev and production via Vercel rewrite)
     let webhookUrl = NOVA_WEBHOOK_URL;
-    if (isDev && NOVA_WEBHOOK_URL.includes('n8n.srv980418.hstgr.cloud')) {
+    if (NOVA_WEBHOOK_URL.includes('n8n.srv980418.hstgr.cloud')) {
+      // Use proxy path for both development and production
       webhookUrl = '/api/nova-ocr';
     }
 
