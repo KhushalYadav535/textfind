@@ -170,35 +170,49 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
                            window.location.hostname === 'textmitra.com' ||
                            (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')));
       
-      let errorMsg = '❌ Empty response from webhook. This usually means:\n\n';
-      errorMsg += '🔴 MOST COMMON ISSUES:\n';
-      errorMsg += '1. ⚠️ n8n workflow is NOT ACTIVE\n';
-      errorMsg += '   → Go to: https://n8n.srv980418.hstgr.cloud\n';
-      errorMsg += '   → Open your workflow and click "ACTIVE" toggle (top right)\n';
-      errorMsg += '   → Make sure it shows "Active" not "Inactive"\n\n';
-      errorMsg += '2. ⚠️ Webhook path mismatch\n';
-      errorMsg += `   → Expected path in n8n: /webhook/nova-ocr\n`;
-      errorMsg += `   → Your webhook URL: ${NOVA_WEBHOOK_URL}\n`;
-      errorMsg += '   → Check n8n webhook node settings\n\n';
-      errorMsg += '3. ⚠️ n8n workflow has errors\n';
-      errorMsg += '   → Check n8n workflow execution logs\n';
-      errorMsg += '   → Look for error messages in the workflow\n\n';
-      errorMsg += `📊 Response Details:\n`;
-      errorMsg += `   - Status: ${response.status}\n`;
-      errorMsg += `   - Response length: ${responseText?.length || 0} bytes\n`;
-      
-      if (isProduction) {
-        errorMsg += `\n🌐 Production Environment:\n`;
-        errorMsg += `   - Site: ${window.location.origin}\n`;
-        errorMsg += `   - Webhook: ${webhookUrl}\n`;
+      // Special case: HTTP 200 but empty body means "Respond to Webhook" node is not configured
+      if (response.status === 200) {
+        let errorMsg = '❌ Webhook returned empty response (HTTP 200 but 0 bytes)\n\n';
+        errorMsg += '🔴 ISSUE: "Respond to Webhook" node is not configured correctly\n\n';
+        errorMsg += '📋 FIX INSTRUCTIONS:\n\n';
+        errorMsg += '1. Open your n8n workflow: https://n8n.srv980418.hstgr.cloud\n';
+        errorMsg += '2. Find the "Respond to Webhook" node (last node in workflow)\n';
+        errorMsg += '3. Click on "Respond to Webhook" node to edit it\n';
+        errorMsg += '4. Check these settings:\n';
+        errorMsg += '   ✅ "Respond With" = "JSON"\n';
+        errorMsg += '   ✅ "Response Body" should contain:\n';
+        errorMsg += '      {\n';
+        errorMsg += '        "success": true,\n';
+        errorMsg += '        "extractedText": "={{ $json.choices[0].message.content }}"\n';
+        errorMsg += '      }\n\n';
+        errorMsg += '5. Make sure the node is connected to the previous node\n';
+        errorMsg += '6. Save the workflow\n';
+        errorMsg += '7. Test the workflow manually to verify it returns data\n\n';
+        errorMsg += `📊 Current Response:\n`;
+        errorMsg += `   - Status: ${response.status} (OK)\n`;
+        errorMsg += `   - Content-Type: ${response.headers.get('content-type') || 'unknown'}\n`;
+        errorMsg += `   - Body length: ${responseText?.length || 0} bytes (should be > 0)\n`;
+        errorMsg += `   - Webhook URL: ${NOVA_WEBHOOK_URL}\n`;
+        
+        if (isProduction) {
+          errorMsg += `\n🌐 Production: ${window.location.origin}\n`;
+        }
+        
+        throw new Error(errorMsg);
       }
       
-      errorMsg += '\n💡 SOLUTION:\n';
-      errorMsg += '1. Login to n8n dashboard\n';
-      errorMsg += '2. Find your "Nova OCR" workflow\n';
-      errorMsg += '3. Click "Active" button to activate it\n';
-      errorMsg += '4. Verify webhook path is: /webhook/nova-ocr\n';
-      errorMsg += '5. Test the workflow manually first\n';
+      // Other cases (non-200 status)
+      let errorMsg = '❌ Empty response from webhook\n\n';
+      errorMsg += '🔴 POSSIBLE ISSUES:\n';
+      errorMsg += '1. ⚠️ n8n workflow is NOT ACTIVE\n';
+      errorMsg += '   → Go to: https://n8n.srv980418.hstgr.cloud\n';
+      errorMsg += '   → Open your workflow and click "ACTIVE" toggle\n\n';
+      errorMsg += '2. ⚠️ Webhook path mismatch\n';
+      errorMsg += `   → Expected: /webhook/nova-ocr\n`;
+      errorMsg += `   → Current: ${NOVA_WEBHOOK_URL}\n\n`;
+      errorMsg += '3. ⚠️ n8n workflow has errors\n';
+      errorMsg += '   → Check n8n workflow execution logs\n\n';
+      errorMsg += `📊 Response: Status ${response.status}, Length ${responseText?.length || 0} bytes\n`;
       
       throw new Error(errorMsg);
     }
