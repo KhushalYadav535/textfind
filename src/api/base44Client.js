@@ -229,7 +229,7 @@ export const base44 = {
   },
   
   ExtractDataFromUploadedFile: async (file, options = {}) => {
-    const { progressCallback = null, apiKey = null } = options;
+    const { progressCallback = null, apiKey = undefined } = options;
     
     try {
       // Detect file type
@@ -250,8 +250,9 @@ export const base44 = {
           progressCallback({ status: 'converting', message: 'Converting file to base64...' });
         }
         
-        const result = await extractTextWithAmazonNova(file, {
-          apiKey,
+        // Only include apiKey in options if it's provided, otherwise let extractTextWithAmazonNova use its default
+        const ocrOptions = {
+          ...(apiKey && { apiKey }),
           progressCallback: (progress) => {
             if (progressCallback) {
               progressCallback({
@@ -261,7 +262,9 @@ export const base44 = {
               });
             }
           }
-        });
+        };
+        
+        const result = await extractTextWithAmazonNova(file, ocrOptions);
         
         extractedText = result.data.text || '';
         confidence = result.data.confidence || 0;
@@ -272,10 +275,6 @@ export const base44 = {
       
       if (!extractedText || extractedText.trim().length === 0) {
         throw new Error('No text could be extracted from the file. Please ensure the image/PDF contains readable text.');
-      }
-      
-      if (!apiKey || apiKey.trim().length === 0) {
-        throw new Error('Amazon Nova API key is required. Please check your configuration.');
       }
       
       return {

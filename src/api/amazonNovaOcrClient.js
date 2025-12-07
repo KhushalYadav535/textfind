@@ -85,16 +85,17 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
     const isDev = import.meta.env.DEV || (typeof window !== 'undefined' && window.location.hostname === 'localhost');
     
     // Use proxy path which routes to:
-    // - Development (localhost): /webhook-test/nova-ocr (via Vite proxy)
-    // - Production: /webhook/nova-ocr (via Vercel serverless function)
+    // - Development (localhost): /webhook/nova-ocr (via Vite proxy)
+    // - Production: /api/nova-ocr (via Vercel serverless function)
     let webhookUrl = NOVA_WEBHOOK_URL;
-    if (NOVA_WEBHOOK_URL.includes('n8n.srv980418.hstgr.cloud')) {
+    const useProxy = NOVA_WEBHOOK_URL.includes('n8n.srv980418.hstgr.cloud');
+    if (useProxy) {
       // Use proxy path - Vite/Vercel will route to correct webhook
       webhookUrl = '/api/nova-ocr';
     }
 
-    console.log('Using webhook URL:', webhookUrl, '(Development:', isDev, ')');
-    console.log('Payload size:', JSON.stringify(payload).length, 'bytes');
+    console.log('[Nova OCR] Environment:', { isDev, useProxy, webhookUrl, hostname: typeof window !== 'undefined' ? window.location.hostname : 'N/A' });
+    console.log('[Nova OCR] Payload size:', JSON.stringify(payload).length, 'bytes');
 
     // Call n8n webhook with timeout
     const controller = new AbortController();
@@ -102,7 +103,9 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
     
     let response;
     try {
-      response = await fetch(webhookUrl, {
+      // For relative URLs (proxy), don't use CORS mode
+      // For absolute URLs, use CORS mode
+      const fetchOptions = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,18 +113,39 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
         },
         body: JSON.stringify(payload),
         signal: controller.signal,
-        // Add credentials for production if needed
-        credentials: 'omit',
-        mode: 'cors'
-      });
+        credentials: 'omit'
+      };
+      
+      // Only set mode: 'cors' for absolute URLs (direct webhook calls)
+      // Relative URLs (/api/nova-ocr) should use default mode (same-origin)
+      if (!useProxy && webhookUrl.startsWith('http')) {
+        fetchOptions.mode = 'cors';
+      }
+      
+      response = await fetch(webhookUrl, fetchOptions);
       clearTimeout(timeoutId);
     } catch (fetchError) {
       clearTimeout(timeoutId);
+      console.error('Fetch error details:', {
+        name: fetchError.name,
+        message: fetchError.message,
+        stack: fetchError.stack,
+        webhookUrl,
+        isDev,
+        useProxy
+      });
+      
       if (fetchError.name === 'AbortError') {
         throw new Error('Webhook request timed out after 60 seconds. Please check n8n workflow configuration.');
       }
+      
+      // More specific error messages
       if (fetchError.message?.includes('CORS') || fetchError.message?.includes('Failed to fetch')) {
-        throw new Error(`CORS error: Unable to connect to webhook. This might be a CORS issue in production. Webhook URL: ${webhookUrl}`);
+        if (useProxy) {
+          throw new Error(`CORS error: Unable to connect to webhook proxy at ${webhookUrl}. ${isDev ? 'Make sure Vite dev server is running and proxy is configured.' : 'Check if the serverless function is deployed correctly.'}`);
+        } else {
+          throw new Error(`CORS error: Unable to connect to webhook at ${webhookUrl}. This might be a CORS issue.`);
+        }
       }
       throw new Error(`Failed to connect to webhook: ${fetchError.message}. Webhook URL: ${webhookUrl}`);
     }
