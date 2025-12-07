@@ -114,11 +114,8 @@ export default function AdvancedUpload() {
           maxPages: 10
         })
 
-        // Upload the original PDF file
-        const uploadResult = await base44.integrations.Core.UploadFile({ 
-          file: fileObj.file 
-        })
-        file_url = uploadResult.file_url
+        // Create blob URL for PDF preview
+        file_url = URL.createObjectURL(fileObj.file)
 
         // Format result to match expected structure
         result = {
@@ -140,17 +137,29 @@ export default function AdvancedUpload() {
           }))
         }, 200)
 
-        // Upload file
-        const uploadResult = await base44.integrations.Core.UploadFile({ 
-          file: fileObj.file 
-        })
-        file_url = uploadResult.file_url
+        // Create blob URL for file preview
+        file_url = URL.createObjectURL(fileObj.file)
 
-        // Extract text
-        result = await base44.integrations.Core.ExtractDataFromUploadedFile({
-          file_url,
-          file: fileObj.file
+        // Extract text using Amazon Nova 2 Lite OCR
+        const extractResult = await base44.ExtractDataFromUploadedFile(fileObj.file, {
+          progressCallback: (progress) => {
+            setProcessingProgress(prev => ({
+              ...prev,
+              [fileObj.id]: Math.min(50 + (progress.progress || 0) * 0.4, 90)
+            }))
+          }
         })
+        
+        result = {
+          status: "success",
+          output: {
+            text: extractResult.text || "",
+            confidence: extractResult.confidence || 0,
+            type: 'image',
+            pages: 1,
+            words: extractResult.text ? extractResult.text.split(/\s+/).filter(w => w.length > 0).length : 0
+          }
+        }
 
         clearInterval(progressInterval)
       }

@@ -1,5 +1,5 @@
 // Direct PDF processing without external dependencies
-import { extractTextWithGemini, extractTextFromMultipleFiles } from '../api/geminiOcrClient.js';
+import { extractTextWithAmazonNova, extractTextFromMultipleFiles } from '../api/amazonNovaOcrClient.js';
 
 /**
  * Convert PDF to images using Canvas API (no PDF.js dependency)
@@ -100,8 +100,8 @@ export const processPDFDirect = async (pdfFile, options = {}) => {
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: 'image/png' });
         
-        // Use Gemini OCR
-        const result = await extractTextWithGemini(blob, {
+        // Use Amazon Nova 2 Lite OCR
+        const result = await extractTextWithAmazonNova(blob, {
           progressCallback: null
         });
         

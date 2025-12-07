@@ -72,11 +72,10 @@ export default function Upload() {
           maxPages: 10
         });
 
-        // Upload the original PDF file
-        setProcessingStatus('Uploading file...');
+        // Create blob URL for PDF preview
+        setProcessingStatus('Preparing file...');
         setProgress(85);
-        const uploadResult = await base44.integrations.Core.UploadFile({ file });
-        file_url = uploadResult.file_url;
+        file_url = URL.createObjectURL(file);
 
         // Format result to match expected structure
         result = {
@@ -103,17 +102,29 @@ export default function Upload() {
           });
         }, 200);
 
-        // Step 1: Upload file
+        // Step 1: Create blob URL for file preview
         setProgress(20);
-        const uploadResult = await base44.integrations.Core.UploadFile({ file });
-        file_url = uploadResult.file_url;
+        file_url = URL.createObjectURL(file);
 
-        // Step 2: Extract text using Gemini OCR
+        // Step 2: Extract text using Amazon Nova 2 Lite OCR
         setProgress(50);
-        result = await base44.integrations.Core.ExtractDataFromUploadedFile({
-          file_url,
-          file: file
+        const extractResult = await base44.ExtractDataFromUploadedFile(file, {
+          progressCallback: (progress) => {
+            setProgress(50 + (progress.progress || 0) * 0.3);
+            setProcessingStatus(progress.message || 'Processing with OCR...');
+          }
         });
+        
+        result = {
+          status: "success",
+          output: {
+            text: extractResult.text || "",
+            confidence: extractResult.confidence || 0,
+            type: 'image',
+            pages: 1,
+            words: extractResult.text ? extractResult.text.split(/\s+/).length : 0
+          }
+        };
 
         clearInterval(progressInterval);
       }
@@ -135,11 +146,13 @@ export default function Upload() {
           console.error('Error converting file to base64:', error);
         }
 
-        // Save to history
+        // Save to history (without file_data_url to save localStorage space)
+        // Note: file_data_url is huge and will cause quota errors, so we don't save it
+        // The blob URL (file_url) will work for preview, but it's temporary
         const historyRecord = await base44.entities.UploadHistory.create({
           original_filename: file.name,
-          image_url: file_url, // Keep blob URL for immediate use
-          file_data_url: fileDataUrl, // Store base64 data URL for permanent preview
+          image_url: file_url, // Keep blob URL for immediate use (temporary)
+          // file_data_url: fileDataUrl, // NOT SAVING - too large for localStorage
           file_type: file.type, // Store file type
           extracted_text: result.output.text || "No text detected",
           confidence_data: {
@@ -151,10 +164,29 @@ export default function Upload() {
           language: "eng"
         });
 
-        // Navigate to results
-        setTimeout(() => {
-          navigate(createPageUrl(`Results?id=${historyRecord.id}`));
-        }, 500);
+        console.log('History record created with ID:', historyRecord.id);
+        
+        // Verify the record was saved before navigating
+        const verifyRecords = await base44.entities.UploadHistory.filter({ id: historyRecord.id });
+        if (verifyRecords.length > 0) {
+          console.log('Record verified in storage, navigating to results...');
+          // Navigate to results
+          setTimeout(() => {
+            navigate(createPageUrl(`Results?id=${historyRecord.id}`));
+          }, 100);
+        } else {
+          console.error('Record not found after creation! ID:', historyRecord.id);
+          // Wait a bit and try again
+          setTimeout(async () => {
+            const retry = await base44.entities.UploadHistory.filter({ id: historyRecord.id });
+            if (retry.length > 0) {
+              navigate(createPageUrl(`Results?id=${historyRecord.id}`));
+            } else {
+              console.error('Record still not found after retry');
+              setError('Failed to save record. Please try again.');
+            }
+          }, 500);
+        }
       } else if (result.status === "error") {
         // Handle specific error messages from OCR
         const errorMessage = result.output?.text || "Failed to process file";

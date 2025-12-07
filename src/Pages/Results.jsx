@@ -2,7 +2,9 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "../api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "../utils";
-import { Copy, Download, RotateCcw, CheckCircle, ImageIcon, FileText, Type, Eye } from "lucide-react";
+import { Copy, Download, RotateCcw, CheckCircle, ImageIcon, FileText, Type, Eye, Languages, Undo2 } from "lucide-react";
+import { autoTranslate, detectLanguage } from "../api/translationClient";
+import toast from "react-hot-toast";
 import { Skeleton } from "../components/ui/skeleton";
 import FormattedTextEditor from "../components/editor/FormattedTextEditor";
 import SmartTextFormatter from "../components/editor/SmartTextFormatter";
@@ -13,9 +15,14 @@ export default function Results() {
   const [record, setRecord] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [editedText, setEditedText] = useState("");
+  const [originalText, setOriginalText] = useState(""); // Store original text before translation
+  const [translatedText, setTranslatedText] = useState(""); // Store translated text separately
   const [copied, setCopied] = useState(false);
   const [showFormattedEditor, setShowFormattedEditor] = useState(false);
   const [viewMode, setViewMode] = useState('plain'); // 'plain', 'formatted', or 'smart'
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translationStatus, setTranslationStatus] = useState("");
+  const [isShowingOriginal, setIsShowingOriginal] = useState(false); // Toggle between original and translated
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -28,10 +35,29 @@ export default function Results() {
 
   const loadRecord = async (id) => {
     try {
+      console.log('Loading record with ID:', id);
       const records = await base44.entities.UploadHistory.filter({ id });
+      console.log('Filtered records:', records);
+      
       if (records.length > 0) {
         setRecord(records[0]);
-        setEditedText(records[0].extracted_text);
+        setEditedText(records[0].extracted_text || '');
+      } else {
+        // Try loading all records to debug
+        const allRecords = await base44.entities.UploadHistory.list();
+        console.log('All records in storage:', allRecords);
+        console.log('Looking for ID:', id);
+        
+        // Try to find by ID manually
+        const found = allRecords.find(r => r.id === id);
+        if (found) {
+          setRecord(found);
+          const text = found.extracted_text || '';
+          setEditedText(text);
+          setOriginalText(text); // Save original text
+        } else {
+          console.error('Record not found. Available IDs:', allRecords.map(r => r.id));
+        }
       }
     } catch (err) {
       console.error("Error loading record:", err);
@@ -71,6 +97,75 @@ export default function Results() {
       await base44.entities.UploadHistory.update(record.id, {
         extracted_text: editedText
       });
+      toast.success('Text saved successfully!');
+    }
+  };
+
+  const handleTranslate = async () => {
+    if (!editedText || editedText.trim().length === 0) {
+      toast.error('No text to translate');
+      return;
+    }
+
+    try {
+      setIsTranslating(true);
+      setTranslationStatus('Detecting language...');
+
+      // Save original text before translation
+      setOriginalText(editedText);
+
+      const detected = detectLanguage(editedText);
+      const fromLang = detected.isHindi ? 'Hindi' : 'English';
+      const toLang = detected.isHindi ? 'English' : 'Hindi';
+
+      toast.loading(`Translating from ${fromLang} to ${toLang}...`, { id: 'translating' });
+
+      const result = await autoTranslate(editedText, (progress) => {
+        setTranslationStatus(progress.message || 'Translating...');
+      });
+
+      // Save translated text
+      setTranslatedText(result.translatedText);
+      setEditedText(result.translatedText);
+      setIsShowingOriginal(false); // Show translated text by default
+      setTranslationStatus('');
+
+      // Save translated text to record
+      if (record) {
+        await base44.entities.UploadHistory.update(record.id, {
+          extracted_text: result.translatedText
+        });
+      }
+
+      toast.success(`Translated from ${result.originalLang} to ${result.targetLang}!`, { id: 'translating' });
+    } catch (error) {
+      console.error('Translation error:', error);
+      toast.error(`Translation failed: ${error.message}`, { id: 'translating' });
+      setTranslationStatus('');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const handleShowOriginal = () => {
+    if (isShowingOriginal) {
+      // Currently showing original, switch to translated
+      if (translatedText && translatedText.trim().length > 0) {
+        setEditedText(translatedText);
+        setIsShowingOriginal(false);
+        toast.success('Showing translated text');
+      } else {
+        toast.error('Translated text not available');
+      }
+    } else {
+      // Currently showing translated, switch to original
+      if (originalText && originalText.trim().length > 0) {
+        setEditedText(originalText);
+        setIsShowingOriginal(true);
+        toast.success('Showing original text');
+      } else {
+        toast.error('Original text not available');
+      }
     }
   };
 
@@ -150,6 +245,28 @@ export default function Results() {
               <Download className="w-4 h-4" />
               Download
             </button>
+            <button
+              onClick={handleTranslate}
+              disabled={isTranslating || !editedText || editedText.trim().length === 0}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-white transition-all duration-300 ${
+                isTranslating
+                  ? 'bg-gradient-to-r from-amber-500/50 to-purple-500/50 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-amber-500 to-purple-500 hover:scale-105'
+              }`}
+            >
+              <Languages className={`w-4 h-4 ${isTranslating ? 'animate-spin' : ''}`} />
+              {isTranslating ? 'Translating...' : 'Translate'}
+            </button>
+            {translatedText && translatedText.trim().length > 0 && (
+              <button
+                onClick={handleShowOriginal}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white transition-all duration-300"
+                title={isShowingOriginal ? 'Show translated text' : 'Show original text'}
+              >
+                <Undo2 className="w-4 h-4" />
+                {isShowingOriginal ? 'Show Translated' : 'Show Original'}
+              </button>
+            )}
             <button
               onClick={() => navigate(createPageUrl("Upload"))}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-amber-500 rounded-xl text-white font-semibold transition-all duration-300 hover:scale-105"

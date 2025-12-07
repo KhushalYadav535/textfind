@@ -1,5 +1,5 @@
 // Specialized Hindi text processing utilities
-import { extractTextFromMultipleFiles } from '../api/geminiOcrClient.js';
+import { extractTextFromMultipleFiles } from '../api/amazonNovaOcrClient.js';
 
 /**
  * Enhanced Hindi text extraction with better OCR settings
@@ -32,7 +32,7 @@ export const extractHindiTextFromImages = async (images, options = {}) => {
         });
       }
       
-      // Convert image data URL to blob for Gemini OCR
+      // Convert image data URL to blob for Amazon Nova OCR
       const base64Data = image.imageData.split(',')[1];
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
@@ -42,8 +42,8 @@ export const extractHindiTextFromImages = async (images, options = {}) => {
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: 'image/png' });
       
-      // Use Gemini OCR for Hindi text extraction
-      // Gemini automatically handles multiple languages including Hindi
+      // Use Amazon Nova 2 Lite OCR for Hindi text extraction
+      // Amazon Nova 2 Lite automatically handles multiple languages including Hindi
       const result = await extractTextFromMultipleFiles([{
         file: blob,
         pageNumber: image.pageNumber
@@ -71,7 +71,7 @@ export const extractHindiTextFromImages = async (images, options = {}) => {
       results.push({
         pageNumber: image.pageNumber,
         text: cleanedText,
-        confidence: Math.round(ocrResult.confidence || 95), // Gemini doesn't return confidence, so we estimate high
+        confidence: Math.round(ocrResult.confidence || 95), // Amazon Nova doesn't return confidence, so we estimate high
         wordCount: cleanedText.trim().split(/\s+/).filter(w => w.length > 0).length,
         language: 'hindi'
       });

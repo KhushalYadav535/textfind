@@ -17,5 +17,17 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    proxy: {
+      '/api/nova-ocr': {
+        target: 'https://n8n.srv980418.hstgr.cloud',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/nova-ocr/, '/webhook-test/nova-ocr'),
+        secure: true,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        }
+      }
+    }
   }
 })

@@ -1,143 +1,293 @@
-import { extractTextWithGemini } from './geminiOcrClient.js';
+/**
+ * Base44 Client - Main API client for the application
+ * Handles OCR processing and data storage
+ */
 
-// Gemini OCR client using n8n webhook
+import { extractTextWithAmazonNova } from './amazonNovaOcrClient.js';
+import { removeFileDataFromHistory, clearOldStorage } from '../utils/localStorageHelper.js';
+
 export const base44 = {
   integrations: {
-    Core: {
-      UploadFile: async ({ file }) => {
-        // Return file URL for processing
-        return {
-          file_url: URL.createObjectURL(file)
-        };
-      },
-      ExtractDataFromUploadedFile: async ({ file_url, file }) => {
+    amazonNova: {
+      extractText: extractTextWithAmazonNova
+    }
+  },
+  
+  entities: {
+    UploadHistory: {
+      create: async (data) => {
         try {
-          // Check file type
-          const fileType = file?.type || 'unknown';
-          const isPDF = fileType === 'application/pdf';
-          const isImage = fileType.startsWith('image/');
+          // PROACTIVE CLEANUP - Clean before saving to prevent quota errors
+          console.log('Starting proactive cleanup before saving...');
           
-          console.log('Processing file type:', fileType);
-          
-          if (!isPDF && !isImage) {
-            return {
-              status: "error",
-              output: {
-                text: "Unsupported file format. Please upload an image (PNG, JPG, WEBP) or PDF file.",
-                confidence: 0
-              }
-            };
+          // Get existing items
+          let existing = [];
+          try {
+            existing = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
+          } catch (e) {
+            console.warn('Error reading existing history, starting fresh:', e);
+            existing = [];
           }
-
-          // For PDF files, show a helpful message
-          if (isPDF) {
-            console.log('PDF file detected, processing with Gemini OCR...');
-          } else {
-            console.log('Image file detected, processing with Gemini OCR...');
-          }
-
-          // Get API key from environment or use empty string (will be handled by geminiOcrClient)
-          const apiKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : '';
           
-          // Use Gemini OCR via n8n webhook
-          const result = await extractTextWithGemini(file, {
-            apiKey: apiKey || undefined, // Pass undefined if empty to let geminiOcrClient handle it
-            progressCallback: (progress) => {
-              console.log(`Gemini OCR Status: ${progress.status} - ${progress.message || ''}`);
-            }
+          // Step 1: Remove file_data_url from ALL items (biggest space saver)
+          console.log('Removing file_data_url from all existing items...');
+          existing = existing.map(item => {
+            const { file_data_url, ...rest } = item;
+            return rest;
           });
           
-          const extractedText = result.data.text.trim();
+          // Step 2: Sort by date (newest first)
+          const sorted = existing.sort((a, b) => 
+            new Date(b.created_date || b.id) - new Date(a.created_date || a.id)
+          );
           
-          if (!extractedText || extractedText.length < 3) {
-            return {
-              status: "success",
-              output: {
-                text: isPDF 
-                  ? "No text could be extracted from this PDF. The PDF might contain only images or be corrupted."
-                  : "No text detected in the image. Please ensure the image contains clear, readable text.",
-                confidence: Math.round(result.data.confidence)
+          // Step 3: Keep only last 10 items (very aggressive limit)
+          const cleaned = sorted.slice(0, 10);
+          
+          // Step 4: Create new record WITHOUT file_data_url to save space
+          const id = Date.now().toString();
+          const { file_data_url: newFileData, ...dataWithoutFile } = data;
+          const record = { 
+            ...dataWithoutFile,
+            id, 
+            created_date: new Date().toISOString()
+          };
+          
+          // Step 5: Clear other localStorage items to free space
+          try {
+            clearOldStorage();
+          } catch (e) {
+            console.warn('Error clearing old storage:', e);
+          }
+          
+          // Step 6: Add new record at the beginning (most recent)
+          const finalList = [record, ...cleaned].slice(0, 10); // Keep max 10 items
+          
+          // Step 7: Try to save with aggressive limits
+          try {
+            const jsonString = JSON.stringify(finalList);
+            
+            // Check size before saving (optional - for debugging)
+            const sizeInMB = new Blob([jsonString]).size / (1024 * 1024);
+            console.log(`Attempting to save ${finalList.length} items, size: ${sizeInMB.toFixed(2)} MB`);
+            
+            localStorage.setItem('uploadHistory', jsonString);
+            
+            // Verify the record was saved
+            const verify = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
+            const found = verify.find(r => r.id === record.id);
+            
+            if (!found) {
+              console.warn('Record not found after save, attempting retry...');
+              // Retry with even more aggressive cleanup
+              const retryList = [record];
+              localStorage.setItem('uploadHistory', JSON.stringify(retryList));
+              console.log('Saved with single record on retry');
+              return record;
+            }
+            
+            console.log('Record saved successfully');
+            return record;
+            
+          } catch (saveError) {
+            console.error('Error saving record:', saveError);
+            
+            // If still failing, try even more aggressive cleanup
+            if (saveError.name === 'QuotaExceededError' || saveError.code === 22 || saveError.message?.includes('quota')) {
+              console.warn('Still quota exceeded, performing extreme cleanup...');
+              
+              try {
+                // Clear ALL other localStorage keys except uploadHistory
+                const keysToKeep = ['uploadHistory'];
+                for (let key in localStorage) {
+                  if (localStorage.hasOwnProperty(key) && !keysToKeep.includes(key)) {
+                    try {
+                      localStorage.removeItem(key);
+                    } catch (e) {
+                      console.warn(`Could not remove ${key}:`, e);
+                    }
+                  }
+                }
+                
+                // Try saving just the new record (last 3 items)
+                const minimalList = [record, ...cleaned.slice(0, 2)]; // Only 3 items total
+                localStorage.setItem('uploadHistory', JSON.stringify(minimalList));
+                console.log('Saved with minimal records (3 items)');
+                return record;
+                
+              } catch (extremeError) {
+                console.error('Extreme cleanup also failed:', extremeError);
+                
+                // Last resort: save just the new record
+                try {
+                  localStorage.setItem('uploadHistory', JSON.stringify([record]));
+                  console.log('Saved only new record as last resort');
+                  return record;
+                } catch (lastResortError) {
+                  console.error('Even last resort failed:', lastResortError);
+                  // Still return the record so navigation can happen
+                  // User will see it's not saved but at least the app won't crash
+                  return record;
+                }
               }
+            }
+            
+            // For other errors, still return the record
+            return record;
+          }
+          
+        } catch (error) {
+          console.error('Error in create function:', error);
+          
+          // Even on error, try to create a minimal record
+          try {
+            const id = Date.now().toString();
+            const { file_data_url, ...dataWithoutFile } = data;
+            const minimalRecord = {
+              ...dataWithoutFile,
+              id,
+              created_date: new Date().toISOString()
+            };
+            
+            // Try to save just this one record
+            try {
+              localStorage.setItem('uploadHistory', JSON.stringify([minimalRecord]));
+            } catch (e) {
+              console.error('Could not save even minimal record:', e);
+            }
+            
+            return minimalRecord;
+          } catch (fallbackError) {
+            console.error('Fallback also failed:', fallbackError);
+            // Return a basic record anyway so navigation can proceed
+            return {
+              id: Date.now().toString(),
+              ...data,
+              created_date: new Date().toISOString()
             };
           }
-          
-          return {
-            status: "success",
-            output: {
-              text: extractedText,
-              confidence: Math.round(result.data.confidence)
-            }
-          };
+        }
+      },
+      
+      list: async () => {
+        try {
+          const items = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
+          return items.sort((a, b) => 
+            new Date(b.created_date || b.id) - new Date(a.created_date || a.id)
+          );
         } catch (error) {
-          console.error('Gemini OCR Error:', error);
+          console.error('Error listing history:', error);
+          return [];
+        }
+      },
+      
+      filter: async (criteria) => {
+        try {
+          const items = await base44.entities.UploadHistory.list();
+          return items.filter(item => {
+            return Object.keys(criteria).every(key => item[key] === criteria[key]);
+          });
+        } catch (error) {
+          console.error('Error filtering history:', error);
+          return [];
+        }
+      },
+      
+      update: async (id, data) => {
+        try {
+          const items = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
+          const index = items.findIndex(item => item.id === id);
           
-          // Provide specific error messages based on error type
-          let errorMessage = "Error processing the file. ";
-          
-          if (error.message?.includes('API key')) {
-            errorMessage += "Gemini API key is required. Please configure VITE_GEMINI_API_KEY environment variable.";
-          } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
-            errorMessage += "Network error occurred while processing. Please check your internet connection.";
-          } else if (error.message?.includes('HTTP')) {
-            errorMessage += `Server error: ${error.message}`;
-          } else if (file?.type === 'application/pdf') {
-            errorMessage += "PDF processing failed. This might be because:\n";
-            errorMessage += "• The PDF is password-protected or corrupted\n";
-            errorMessage += "• The PDF is too large\n";
-            errorMessage += "• Network connection issues\n\n";
-            errorMessage += "Please try again or use a different PDF file.";
-          } else {
-            errorMessage += error.message || "Please try with a different file or check if the file contains clear, readable text.";
+          if (index !== -1) {
+            // Remove file_data_url from updated item to save space
+            const { file_data_url, ...dataWithoutFile } = data;
+            items[index] = { ...items[index], ...dataWithoutFile };
+            
+            localStorage.setItem('uploadHistory', JSON.stringify(items));
+            return items[index];
           }
           
-          return {
-            status: "error",
-            output: {
-              text: errorMessage,
-              confidence: 0
-            }
-          };
+          return null;
+        } catch (error) {
+          console.error('Error updating history:', error);
+          return null;
+        }
+      },
+      
+      delete: async (id) => {
+        try {
+          const items = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
+          const filtered = items.filter(item => item.id !== id);
+          localStorage.setItem('uploadHistory', JSON.stringify(filtered));
+          return true;
+        } catch (error) {
+          console.error('Error deleting history:', error);
+          return false;
         }
       }
     }
   },
-  entities: {
-    UploadHistory: {
-      create: async (data) => {
-        // Mock creation - save to localStorage for demo
-        const id = Date.now().toString();
-        const record = { ...data, id, created_date: new Date().toISOString() };
-        const existing = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
-        existing.push(record);
-        localStorage.setItem('uploadHistory', JSON.stringify(existing));
-        return record;
-      },
-      list: async (sortBy) => {
-        // Mock list - get from localStorage
-        const existing = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
-        return existing.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-      },
-      filter: async ({ id }) => {
-        // Mock filter
-        const existing = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
-        return existing.filter(item => item.id === id);
-      },
-      update: async (id, data) => {
-        // Mock update
-        const existing = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
-        const index = existing.findIndex(item => item.id === id);
-        if (index !== -1) {
-          existing[index] = { ...existing[index], ...data };
-          localStorage.setItem('uploadHistory', JSON.stringify(existing));
-          return existing[index];
-        }
-      },
-      delete: async (id) => {
-        // Mock delete
-        const existing = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
-        const filtered = existing.filter(item => item.id !== id);
-        localStorage.setItem('uploadHistory', JSON.stringify(filtered));
+  
+  ExtractDataFromUploadedFile: async (file, options = {}) => {
+    const { progressCallback = null, apiKey = null } = options;
+    
+    try {
+      // Detect file type
+      const fileType = file.type;
+      const isImage = fileType.startsWith('image/');
+      const isPDF = fileType === 'application/pdf';
+      
+      if (!isImage && !isPDF) {
+        throw new Error(`Unsupported file type: ${fileType}`);
       }
+      
+      let extractedText = '';
+      let confidence = 0;
+      
+      if (isImage) {
+        console.log('Image file detected, processing with Amazon Nova 2 Lite OCR...');
+        if (progressCallback) {
+          progressCallback({ status: 'converting', message: 'Converting file to base64...' });
+        }
+        
+        const result = await extractTextWithAmazonNova(file, {
+          apiKey,
+          progressCallback: (progress) => {
+            if (progressCallback) {
+              progressCallback({
+                status: progress.status || 'processing',
+                message: progress.message || 'Processing with Amazon Nova 2 Lite OCR...',
+                progress: progress.progress || 0
+              });
+            }
+          }
+        });
+        
+        extractedText = result.data.text || '';
+        confidence = result.data.confidence || 0;
+      } else {
+        // PDF handling would go here
+        throw new Error('PDF processing not implemented in this function. Use processPDF instead.');
+      }
+      
+      if (!extractedText || extractedText.trim().length === 0) {
+        throw new Error('No text could be extracted from the file. Please ensure the image/PDF contains readable text.');
+      }
+      
+      if (!apiKey || apiKey.trim().length === 0) {
+        throw new Error('Amazon Nova API key is required. Please check your configuration.');
+      }
+      
+      return {
+        text: extractedText,
+        confidence: confidence,
+        fileType: fileType,
+        fileName: file.name
+      };
+      
+    } catch (error) {
+      console.error('Amazon Nova 2 Lite OCR Error:', error);
+      throw error;
     }
   }
 };

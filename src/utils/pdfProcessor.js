@@ -1,6 +1,6 @@
 // PDF processing utilities for both text-based and scanned PDFs
 import * as pdfjsLib from 'pdfjs-dist';
-import { extractTextWithGemini, extractTextFromMultipleFiles } from '../api/geminiOcrClient.js';
+import { extractTextWithAmazonNova, extractTextFromMultipleFiles } from '../api/amazonNovaOcrClient.js';
 import { processPDFFallback } from './pdfProcessorFallback.js';
 import { processPDFSimple } from './simplePDFProcessor.js';
 import { processPDFEnhanced } from './enhancedPDFProcessor.js';
@@ -154,17 +154,17 @@ export const convertPDFToImages = async (pdfFile, options = {}) => {
 };
 
 /**
- * Extract text from images using Gemini OCR
+ * Extract text from images using Amazon Nova 2 Lite OCR
  * @param {Array} images - Array of image objects from convertPDFToImages
  * @param {Object} options - OCR options
  * @returns {Promise<Array<{pageNumber: number, text: string, confidence: number}>>}
  */
 export const extractTextFromImages = async (images, options = {}) => {
   // Import API key from environment or use provided one
-  const defaultApiKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : null;
+  const defaultApiKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_NOVA_API_KEY : null;
   
   const {
-    languages = ['eng', 'hin'], // Language parameter kept for compatibility, but Gemini handles multiple languages automatically
+    languages = ['eng', 'hin'], // Language parameter kept for compatibility, but Amazon Nova handles multiple languages automatically
     progressCallback = null,
     apiKey = defaultApiKey
   } = options;
@@ -172,7 +172,7 @@ export const extractTextFromImages = async (images, options = {}) => {
   const results = [];
   const totalImages = images.length;
   
-  // Convert image data URLs to File/Blob objects for Gemini OCR
+  // Convert image data URLs to File/Blob objects for Amazon Nova OCR
   const imageFiles = images.map(image => {
     // Convert data URL to blob
     const base64Data = image.imageData.split(',')[1];
@@ -189,7 +189,7 @@ export const extractTextFromImages = async (images, options = {}) => {
     };
   });
   
-  // Use Gemini OCR to process all images
+  // Use Amazon Nova 2 Lite OCR to process all images
   try {
     const ocrResults = await extractTextFromMultipleFiles(imageFiles, {
       apiKey,
@@ -209,7 +209,7 @@ export const extractTextFromImages = async (images, options = {}) => {
     
     return ocrResults;
   } catch (error) {
-    console.error('Error processing images with Gemini OCR:', error);
+    console.error('Error processing images with Amazon Nova 2 Lite OCR:', error);
     // Return empty results for all pages on error
     return images.map(image => ({
       pageNumber: image.pageNumber,
@@ -229,7 +229,7 @@ export const extractTextFromImages = async (images, options = {}) => {
  */
 export const processPDF = async (pdfFile, options = {}) => {
   // Import API key from environment or use provided one
-  const defaultApiKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : null;
+  const defaultApiKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_NOVA_API_KEY : null;
   
   const {
     languages = ['eng', 'hin'], // Language parameter kept for compatibility
@@ -241,62 +241,11 @@ export const processPDF = async (pdfFile, options = {}) => {
   } = options;
   
   try {
-    // Step 1: Try direct PDF processing with Gemini (most efficient)
-    // Gemini can handle PDFs directly, so we try that first
-    if (progressCallback) {
-      progressCallback({ status: 'processing', message: 'Processing PDF with Gemini OCR...' });
-    }
+    // Skip direct PDF processing - PDFs are often too large for webhook
+    // Go directly to page-by-page processing (convert PDF to images, then OCR each page)
+    // This is more reliable and works better with the webhook
     
-    try {
-      // Send entire PDF directly to Gemini OCR
-      const result = await extractTextWithGemini(pdfFile, {
-        apiKey,
-        progressCallback: (progress) => {
-          if (progressCallback) {
-            progressCallback({
-              status: progress.status || 'processing',
-              message: progress.message || 'Processing PDF...',
-              progress: progress.progress || 0
-            });
-          }
-        }
-      });
-      
-      const extractedText = result.data.text.trim();
-      
-      if (extractedText && extractedText.length > 10) {
-        // Successfully extracted text directly from PDF
-        if (progressCallback) {
-          progressCallback({ status: 'complete', message: 'PDF processed successfully!' });
-        }
-        
-        const wordCount = extractedText.split(/\s+/).filter(w => w.length > 0).length;
-        
-        return {
-          type: 'gemini_direct',
-          analysis: {
-            isScanned: false,
-            hasText: true,
-            confidence: result.data.confidence,
-            totalPages: 1, // Gemini processes all pages at once
-            pagesWithText: 1
-          },
-          pages: [{
-            pageNumber: 1,
-            text: extractedText,
-            confidence: result.data.confidence,
-            wordCount: wordCount
-          }],
-          totalText: extractedText,
-          totalConfidence: result.data.confidence,
-          totalWords: wordCount
-        };
-      }
-    } catch (directError) {
-      console.log('Direct PDF processing failed, falling back to page-by-page processing:', directError.message);
-    }
-    
-    // Step 2: Fallback to page-by-page processing if direct processing fails
+    // Step 1: Analyze PDF and convert to images
     if (progressCallback) {
       progressCallback({ status: 'analyzing', message: 'Analyzing PDF type...' });
     }
@@ -311,10 +260,10 @@ export const processPDF = async (pdfFile, options = {}) => {
     const images = await convertPDFToImages(pdfFile, { maxPages });
     
     if (progressCallback) {
-      progressCallback({ status: 'ocr_processing', message: 'Running Gemini OCR on pages...' });
+      progressCallback({ status: 'ocr_processing', message: 'Running Amazon Nova 2 Lite OCR on pages...' });
     }
     
-    // Process each page with Gemini OCR
+    // Process each page with Amazon Nova 2 Lite OCR
     const ocrResults = await extractTextFromImages(images, { 
       languages, 
       progressCallback,
