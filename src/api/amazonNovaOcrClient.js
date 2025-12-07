@@ -90,15 +90,37 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
     }
 
     console.log('Using webhook URL:', webhookUrl, '(Development:', isDev, ')');
+    console.log('Payload size:', JSON.stringify(payload).length, 'bytes');
 
-    // Call n8n webhook
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    // Call n8n webhook with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    
+    let response;
+    try {
+      response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+        // Add credentials for production if needed
+        credentials: 'omit',
+        mode: 'cors'
+      });
+      clearTimeout(timeoutId);
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        throw new Error('Webhook request timed out after 60 seconds. Please check n8n workflow configuration.');
+      }
+      if (fetchError.message?.includes('CORS') || fetchError.message?.includes('Failed to fetch')) {
+        throw new Error(`CORS error: Unable to connect to webhook. This might be a CORS issue in production. Webhook URL: ${webhookUrl}`);
+      }
+      throw new Error(`Failed to connect to webhook: ${fetchError.message}. Webhook URL: ${webhookUrl}`);
+    }
 
     if (progressCallback) {
       progressCallback({ status: 'processing', progress: 70, message: 'Processing with Amazon Nova 2 Lite...' });
@@ -137,8 +159,48 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
     // Get response text first to check if it's empty
     const responseText = await response.text();
     
+    // Log response details for debugging
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+    console.log('Response text length:', responseText?.length || 0);
+    
     if (!responseText || responseText.trim().length === 0) {
-      throw new Error('Empty response from webhook. Please check n8n workflow configuration.');
+      const isProduction = typeof window !== 'undefined' && 
+                          (window.location.hostname === 'www.textmitra.com' || 
+                           window.location.hostname === 'textmitra.com' ||
+                           (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')));
+      
+      let errorMsg = '❌ Empty response from webhook. This usually means:\n\n';
+      errorMsg += '🔴 MOST COMMON ISSUES:\n';
+      errorMsg += '1. ⚠️ n8n workflow is NOT ACTIVE\n';
+      errorMsg += '   → Go to: https://n8n.srv980418.hstgr.cloud\n';
+      errorMsg += '   → Open your workflow and click "ACTIVE" toggle (top right)\n';
+      errorMsg += '   → Make sure it shows "Active" not "Inactive"\n\n';
+      errorMsg += '2. ⚠️ Webhook path mismatch\n';
+      errorMsg += `   → Expected path in n8n: /webhook/nova-ocr\n`;
+      errorMsg += `   → Your webhook URL: ${NOVA_WEBHOOK_URL}\n`;
+      errorMsg += '   → Check n8n webhook node settings\n\n';
+      errorMsg += '3. ⚠️ n8n workflow has errors\n';
+      errorMsg += '   → Check n8n workflow execution logs\n';
+      errorMsg += '   → Look for error messages in the workflow\n\n';
+      errorMsg += `📊 Response Details:\n`;
+      errorMsg += `   - Status: ${response.status}\n`;
+      errorMsg += `   - Response length: ${responseText?.length || 0} bytes\n`;
+      
+      if (isProduction) {
+        errorMsg += `\n🌐 Production Environment:\n`;
+        errorMsg += `   - Site: ${window.location.origin}\n`;
+        errorMsg += `   - Webhook: ${webhookUrl}\n`;
+      }
+      
+      errorMsg += '\n💡 SOLUTION:\n';
+      errorMsg += '1. Login to n8n dashboard\n';
+      errorMsg += '2. Find your "Nova OCR" workflow\n';
+      errorMsg += '3. Click "Active" button to activate it\n';
+      errorMsg += '4. Verify webhook path is: /webhook/nova-ocr\n';
+      errorMsg += '5. Test the workflow manually first\n';
+      
+      throw new Error(errorMsg);
     }
 
     // Try to parse JSON
