@@ -21,7 +21,7 @@ export default defineConfig({
       '/api/nova-ocr': {
         target: 'https://n8n.srv980418.hstgr.cloud',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/nova-ocr/, '/webhook/nova-ocr'),
+        rewrite: (path) => path.replace(/^\/api\/nova-ocr/, '/webhook-test/nova-ocr'), // Development: test webhook
         secure: true,
         headers: {
           'Accept': 'application/json',

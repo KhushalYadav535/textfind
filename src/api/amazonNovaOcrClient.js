@@ -3,6 +3,7 @@
  */
 
 // Configuration - Get from environment variables
+// Default to production webhook, will be overridden for development
 const NOVA_WEBHOOK_URL = import.meta.env?.VITE_NOVA_WEBHOOK_URL || 'https://n8n.srv980418.hstgr.cloud/webhook/nova-ocr';
 const NOVA_API_KEY = import.meta.env?.VITE_NOVA_API_KEY || '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';
 
@@ -82,14 +83,13 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
 
     // Determine the webhook URL (use proxy to avoid CORS in both dev and production)
     const isDev = import.meta.env.DEV || (typeof window !== 'undefined' && window.location.hostname === 'localhost');
-    const isProduction = typeof window !== 'undefined' && 
-                        (window.location.hostname === 'www.textmitra.com' || 
-                         window.location.hostname === 'textmitra.com');
     
-    // Use proxy to avoid CORS issues (works in both dev and production via Vercel rewrite)
+    // Use proxy path which routes to:
+    // - Development (localhost): /webhook-test/nova-ocr (via Vite proxy)
+    // - Production: /webhook/nova-ocr (via Vercel serverless function)
     let webhookUrl = NOVA_WEBHOOK_URL;
     if (NOVA_WEBHOOK_URL.includes('n8n.srv980418.hstgr.cloud')) {
-      // Use proxy path for both development and production
+      // Use proxy path - Vite/Vercel will route to correct webhook
       webhookUrl = '/api/nova-ocr';
     }
 

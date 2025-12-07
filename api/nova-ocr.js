@@ -3,6 +3,7 @@
  * Handles CORS and proxies requests to n8n webhook in production
  */
 
+// Production webhook URL (for Vercel serverless function)
 const NOVA_WEBHOOK_URL = 'https://n8n.srv980418.hstgr.cloud/webhook/nova-ocr';
 
 export default async function handler(req, res) {
