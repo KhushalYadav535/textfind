@@ -4,7 +4,7 @@
  */
 
 // Production webhook URL (for Vercel serverless function)
-const NOVA_WEBHOOK_URL = 'https://n8n.srv1105409.hstgr.cloud/webhook-test/nova-ocr';
+const NOVA_WEBHOOK_URL = 'https://n8n.srv1105409.hstgr.cloud/webhook/nova-ocr';
 
 export default async function handler(req, res) {
   // Handle CORS preflight
