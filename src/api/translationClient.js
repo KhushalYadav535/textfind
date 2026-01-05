@@ -40,6 +40,28 @@ export const detectLanguage = (text) => {
   };
 };
 
+// Language code to name mapping
+const LANGUAGE_NAMES = {
+  'en': 'English',
+  'hi': 'Hindi',
+  'es': 'Spanish',
+  'fr': 'French',
+  'de': 'German',
+  'zh': 'Chinese',
+  'ja': 'Japanese',
+  'ko': 'Korean',
+  'ar': 'Arabic',
+  'pt': 'Portuguese',
+  'ru': 'Russian',
+  'it': 'Italian',
+  'nl': 'Dutch',
+  'pl': 'Polish',
+  'tr': 'Turkish',
+  'vi': 'Vietnamese',
+  'th': 'Thai',
+  'id': 'Indonesian',
+};
+
 /**
  * Translate text using Amazon Nova 2 Lite via OpenRouter
  */
@@ -61,17 +83,15 @@ export const translateText = async (text, options = {}) => {
       targetLang = detected.isHindi ? 'en' : 'hi';
     }
 
-    const fromLangName = sourceLang === 'hi' ? 'Hindi' : 'English';
-    const toLangName = targetLang === 'hi' ? 'Hindi' : 'English';
+    const fromLangName = LANGUAGE_NAMES[sourceLang] || sourceLang;
+    const toLangName = LANGUAGE_NAMES[targetLang] || targetLang;
 
     if (progressCallback) {
       progressCallback({ status: 'translating', progress: 10, message: `Translating from ${fromLangName} to ${toLangName}...` });
     }
 
-    // Create translation prompt
-    const translationPrompt = sourceLang === 'hi'
-      ? `Translate the following Hindi text to English. Return ONLY the translated English text without any explanation, prefix, suffix, or additional text. Just return the translation:\n\n${text}`
-      : `Translate the following English text to Hindi. Return ONLY the translated Hindi text in Devanagari script without any explanation, prefix, suffix, or additional text. Just return the translation:\n\n${text}`;
+    // Create translation prompt for any language pair
+    const translationPrompt = `Translate the following ${fromLangName} text to ${toLangName}. Return ONLY the translated ${toLangName} text without any explanation, prefix, suffix, or additional text. Just return the translation:\n\n${text}`;
 
     if (progressCallback) {
       progressCallback({ status: 'translating', progress: 30, message: 'Sending translation request...' });
@@ -138,9 +158,9 @@ export const translateText = async (text, options = {}) => {
 };
 
 /**
- * Auto-translate: detects language and translates accordingly
+ * Auto-translate: detects language and translates to target language
  */
-export const autoTranslate = async (text, progressCallback = null) => {
+export const autoTranslate = async (text, progressCallback = null, targetLanguage = null) => {
   if (!text || text.trim().length === 0) {
     return { translatedText: text, fromLang: null, toLang: null };
   }
@@ -148,8 +168,9 @@ export const autoTranslate = async (text, progressCallback = null) => {
   const detected = detectLanguage(text);
   const isHindi = detected.isHindi;
   
+  // Use provided target language or auto-detect
   const fromLang = isHindi ? 'hi' : 'en';
-  const toLang = isHindi ? 'en' : 'hi';
+  const toLang = targetLanguage || (isHindi ? 'en' : 'hi');
 
   const translatedText = await translateText(text, {
     fromLang,
@@ -161,7 +182,7 @@ export const autoTranslate = async (text, progressCallback = null) => {
     translatedText,
     fromLang,
     toLang,
-    originalLang: isHindi ? 'Hindi' : 'English',
-    targetLang: isHindi ? 'English' : 'Hindi'
+    originalLang: LANGUAGE_NAMES[fromLang] || fromLang,
+    targetLang: LANGUAGE_NAMES[toLang] || toLang
   };
 };

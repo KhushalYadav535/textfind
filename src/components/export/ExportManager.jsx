@@ -22,6 +22,15 @@ import {
   Database
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { 
+  exportToTXT, 
+  exportToPDF, 
+  exportToDOCX, 
+  exportToCSV, 
+  exportToJSON, 
+  exportToHTML,
+  generateQRCode as generateQRCodeUtil
+} from '../../utils/exportUtils'
 
 export default function ExportManager({ documentData, onExport }) {
   const [activeTab, setActiveTab] = useState('export')
@@ -49,21 +58,54 @@ export default function ExportManager({ documentData, onExport }) {
     { id: 'html', name: 'HTML Webpage', icon: <Globe className="w-5 h-5" />, description: 'Web page format' }
   ]
 
-  const handleExport = () => {
-    const exportData = {
-      text: documentData.text,
-      metadata: exportOptions.includeMetadata ? documentData.metadata : null,
-      confidence: exportOptions.includeConfidence ? documentData.confidence : null,
-      images: exportOptions.includeImages ? documentData.images : null,
-      format: selectedFormat,
-      options: exportOptions
-    }
+  const handleExport = async () => {
+    try {
+      const filename = documentData.metadata?.filename?.replace(/\.[^/.]+$/, "") || 'document';
+      const text = documentData.text || '';
+      
+      const exportOptions_full = {
+        includeMetadata: exportOptions.includeMetadata,
+        includeConfidence: exportOptions.includeConfidence,
+        includeImages: exportOptions.includeImages,
+        metadata: documentData.metadata,
+        confidence: documentData.confidence,
+        format: exportOptions.format
+      };
 
-    if (onExport) {
-      onExport(exportData)
-    }
+      toast.loading(`Exporting as ${selectedFormat.toUpperCase()}...`, { id: 'exporting' });
 
-    toast.success(`Exported as ${selectedFormat.toUpperCase()}`)
+      switch (selectedFormat) {
+        case 'txt':
+          await exportToTXT(text, filename, exportOptions_full);
+          break;
+        case 'pdf':
+          await exportToPDF(text, filename, exportOptions_full);
+          break;
+        case 'docx':
+          await exportToDOCX(text, filename, exportOptions_full);
+          break;
+        case 'csv':
+          await exportToCSV(text, filename, exportOptions_full);
+          break;
+        case 'json':
+          await exportToJSON(text, filename, exportOptions_full);
+          break;
+        case 'html':
+          await exportToHTML(text, filename, exportOptions_full);
+          break;
+        default:
+          throw new Error('Unsupported format');
+      }
+
+      toast.success(`Exported as ${selectedFormat.toUpperCase()}!`, { id: 'exporting' });
+      
+      if (onExport) {
+        onExport({ format: selectedFormat, options: exportOptions_full });
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error(`Export failed: ${error.message}`, { id: 'exporting' });
+    }
   }
 
   const generateShareLink = () => {
@@ -83,10 +125,19 @@ export default function ExportManager({ documentData, onExport }) {
     }
   }
 
-  const generateQRCode = () => {
-    const shareUrl = generateShareLink()
-    // In a real app, you'd generate an actual QR code
-    toast.success('QR code generated!')
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState(null);
+  const [showQRModal, setShowQRModal] = useState(false);
+
+  const handleGenerateQRCode = async () => {
+    try {
+      const shareUrl = generateShareLink();
+      const qrDataUrl = await generateQRCodeUtil(shareUrl);
+      setQrCodeDataUrl(qrDataUrl);
+      setShowQRModal(true);
+    } catch (error) {
+      console.error('QR Code generation error:', error);
+      toast.error('Failed to generate QR code');
+    }
   }
 
   const TabButton = ({ id, label, icon, isActive, onClick }) => (
@@ -296,7 +347,7 @@ export default function ExportManager({ documentData, onExport }) {
                 </button>
 
                 <button
-                  onClick={generateQRCode}
+                  onClick={handleGenerateQRCode}
                   className="flex items-center gap-3 p-4 rounded-xl bg-slate-800/30 border border-white/10 hover:border-white/20 transition-all"
                 >
                   <div className="p-3 rounded-xl bg-purple-500/20">
@@ -414,6 +465,41 @@ export default function ExportManager({ documentData, onExport }) {
           </motion.div>
         )}
       </div>
+
+      {/* QR Code Modal */}
+      {showQRModal && qrCodeDataUrl && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-white/10"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white">QR Code</h3>
+              <button
+                onClick={() => setShowQRModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex flex-col items-center gap-4">
+              <img src={qrCodeDataUrl} alt="QR Code" className="w-64 h-64" />
+              <button
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = qrCodeDataUrl;
+                  a.download = 'qrcode.png';
+                  a.click();
+                }}
+                className="px-4 py-2 bg-cyan-500 rounded-xl text-white hover:bg-cyan-600 transition-colors"
+              >
+                Download QR Code
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }

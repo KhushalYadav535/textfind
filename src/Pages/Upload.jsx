@@ -5,8 +5,11 @@ import { createPageUrl } from "../utils";
 import FileUploadZone from "../assets/components/FileUploadZone";
 import ProcessingView from "../assets/components/Processingview";
 import PDFConversionHelper from "../components/pdf/PDFConversionHelper";
+import LanguageSelector from "../components/upload/LanguageSelector";
+import ImagePreprocessorPanel from "../components/upload/ImagePreprocessorPanel";
+import BatchUpload from "../components/upload/BatchUpload";
 import { processPDFWithOCR, analyzePDF } from "../utils/pdfUtils";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Upload as UploadIcon, Layers } from "lucide-react";
 
 export default function Upload() {
   const navigate = useNavigate();
@@ -17,6 +20,9 @@ export default function Upload() {
   const [showPDFHelper, setShowPDFHelper] = useState(false);
   const [pdfAnalysis, setPdfAnalysis] = useState(null);
   const [processingStatus, setProcessingStatus] = useState('');
+  const [selectedLanguages, setSelectedLanguages] = useState(['eng']);
+  const [uploadMode, setUploadMode] = useState('single'); // single or batch
+  const [processedFile, setProcessedFile] = useState(null);
 
   const handleFileSelect = async (file) => {
     setSelectedFile(file);
@@ -67,7 +73,7 @@ export default function Upload() {
 
         // Process PDF with OCR support
         const pdfResult = await processPDFWithOCR(file, {
-          languages: ['eng'],
+          languages: selectedLanguages,
           progressCallback,
           maxPages: 10
         });
@@ -218,6 +224,42 @@ export default function Upload() {
           </p>
         </div>
 
+        {/* Mode Toggle */}
+        <div className="flex justify-center gap-4 mb-8">
+          <button
+            onClick={() => setUploadMode('single')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all ${
+              uploadMode === 'single'
+                ? 'bg-gradient-to-r from-cyan-500 to-amber-500 text-white'
+                : 'bg-white/5 text-slate-400 hover:bg-white/10'
+            }`}
+          >
+              <UploadIcon className="w-4 h-4" />
+              Single File
+          </button>
+          <button
+            onClick={() => setUploadMode('batch')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all ${
+              uploadMode === 'batch'
+                ? 'bg-gradient-to-r from-cyan-500 to-amber-500 text-white'
+                : 'bg-white/5 text-slate-400 hover:bg-white/10'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            Batch Upload
+          </button>
+        </div>
+
+        {/* Language Selector */}
+        {uploadMode === 'single' && (
+          <div className="mb-6 flex justify-center">
+            <LanguageSelector
+              selectedLanguages={selectedLanguages}
+              onLanguagesChange={setSelectedLanguages}
+            />
+          </div>
+        )}
+
         {error && (
           <div className="mb-8 p-4 rounded-2xl bg-red-500/10 border border-red-500/30 backdrop-blur-sm">
             <div className="flex items-center gap-3 text-red-400">
@@ -229,13 +271,32 @@ export default function Upload() {
 
         {!isProcessing ? (
           <>
-            <FileUploadZone onFileSelect={handleFileSelect} />
-            
-            {/* PDF Conversion Helper */}
-            {showPDFHelper && (
-              <div className="mt-8">
-                <PDFConversionHelper />
-              </div>
+            {uploadMode === 'batch' ? (
+              <BatchUpload onComplete={() => navigate(createPageUrl('History'))} />
+            ) : (
+              <>
+                <FileUploadZone onFileSelect={handleFileSelect} />
+                
+                {/* Image Preprocessor */}
+                {selectedFile && selectedFile.type?.startsWith('image/') && (
+                  <div className="mt-6">
+                    <ImagePreprocessorPanel
+                      file={selectedFile}
+                      onProcessed={(processed) => {
+                        setProcessedFile(processed);
+                        setSelectedFile(processed);
+                      }}
+                    />
+                  </div>
+                )}
+                
+                {/* PDF Conversion Helper */}
+                {showPDFHelper && (
+                  <div className="mt-8">
+                    <PDFConversionHelper />
+                  </div>
+                )}
+              </>
             )}
           </>
         ) : (
