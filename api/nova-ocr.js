@@ -4,7 +4,9 @@
  */
 
 // Production webhook URL (for Vercel serverless function)
-const NOVA_WEBHOOK_URL = 'https://n8n.srv1105409.hstgr.cloud/webhook/nova-ocr';
+// Note: Make sure this matches the URL in amazonNovaOcrClient.js
+// Can be overridden with environment variable NOVA_WEBHOOK_URL
+const NOVA_WEBHOOK_URL = process.env.NOVA_WEBHOOK_URL || 'https://n8n.srv980418.hstgr.cloud/webhook/nova-ocr';
 
 export default async function handler(req, res) {
   // Handle CORS preflight
@@ -37,14 +39,19 @@ export default async function handler(req, res) {
     const responseText = await response.text();
     
     // Log response details for debugging
+    const requestBodySize = JSON.stringify(req.body).length;
+    console.log('[Proxy] Request body size:', requestBodySize, 'bytes');
     console.log('[Proxy] Response status:', response.status);
     console.log('[Proxy] Response headers:', Object.fromEntries(response.headers.entries()));
     console.log('[Proxy] Response body length:', responseText?.length || 0);
     
     // Check if response is empty
     if (!responseText || responseText.trim().length === 0) {
-      console.error('[Proxy] Empty response from n8n webhook!');
+      console.error('[Proxy] ⚠️ Empty response from n8n webhook!');
+      console.error('[Proxy] Request sent:', requestBodySize, 'bytes');
+      console.error('[Proxy] Response received:', responseText?.length || 0, 'bytes');
       console.error('[Proxy] This usually means "Respond to Webhook" node is not configured correctly');
+      console.error('[Proxy] The n8n workflow received the request but did not return any data');
     }
     
     // Set CORS headers

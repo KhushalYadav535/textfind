@@ -88,14 +88,17 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
     // - Development (localhost): /webhook/nova-ocr (via Vite proxy)
     // - Production: /api/nova-ocr (via Vercel serverless function)
     let webhookUrl = NOVA_WEBHOOK_URL;
-    const useProxy = NOVA_WEBHOOK_URL.includes('n8n.srv980418.hstgr.cloud');
+    // Check if webhook URL is from n8n (any instance) - use proxy for all n8n instances
+    const useProxy = NOVA_WEBHOOK_URL.includes('n8n.srv') && NOVA_WEBHOOK_URL.includes('hstgr.cloud');
     if (useProxy) {
       // Use proxy path - Vite/Vercel will route to correct webhook
       webhookUrl = '/api/nova-ocr';
     }
 
     console.log('[Nova OCR] Environment:', { isDev, useProxy, webhookUrl, hostname: typeof window !== 'undefined' ? window.location.hostname : 'N/A' });
-    console.log('[Nova OCR] Payload size:', JSON.stringify(payload).length, 'bytes');
+    const payloadSize = JSON.stringify(payload).length;
+    console.log('[Nova OCR] Payload size:', payloadSize, 'bytes');
+    console.log('[Nova OCR] Sending request to:', webhookUrl);
 
     // Call n8n webhook with timeout
     const controller = new AbortController();
@@ -200,27 +203,52 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
       
       // Special case: HTTP 200 but empty body means "Respond to Webhook" node is not configured
       if (response.status === 200) {
+        // Extract n8n instance URL from webhook URL
+        let n8nInstanceUrl = 'https://n8n.srv980418.hstgr.cloud'; // default
+        try {
+          const urlObj = new URL(NOVA_WEBHOOK_URL);
+          n8nInstanceUrl = `${urlObj.protocol}//${urlObj.hostname}`;
+        } catch (e) {
+          // If URL parsing fails, use default
+          console.warn('Could not parse webhook URL:', NOVA_WEBHOOK_URL);
+        }
+        
         let errorMsg = '❌ Webhook returned empty response (HTTP 200 but 0 bytes)\n\n';
-        errorMsg += '🔴 ISSUE: "Respond to Webhook" node is not configured correctly\n\n';
+        errorMsg += '📤 REQUEST: Successfully sent ' + payloadSize + ' bytes to n8n webhook\n';
+        errorMsg += '📥 RESPONSE: Received 0 bytes (empty) from n8n webhook\n\n';
+        errorMsg += '💡 EXPLANATION:\n';
+        errorMsg += '   - Your request payload (' + payloadSize + ' bytes) was sent successfully ✅\n';
+        errorMsg += '   - But n8n webhook returned empty response (0 bytes) ❌\n';
+        errorMsg += '   - This is NOT a fallback - this is an ERROR case\n\n';
+        errorMsg += '🔴 POSSIBLE CAUSES:\n\n';
+        errorMsg += '1. ⚠️ "Amazon Nova 2 Lite OCR" node failed (check for payment/API errors)\n';
+        errorMsg += '   → Open n8n workflow: ' + n8nInstanceUrl + '\n';
+        errorMsg += '   → Check the "Amazon Nova 2 Lite OCR" node for errors\n';
+        errorMsg += '   → Common issues: Payment required, API key invalid, rate limit\n\n';
+        errorMsg += '2. ⚠️ "Respond to Webhook" node not configured for error handling\n';
+        errorMsg += '   → When OCR node fails, workflow stops and returns empty response\n';
+        errorMsg += '   → Add error handling in n8n workflow (see instructions below)\n\n';
         errorMsg += '📋 FIX INSTRUCTIONS:\n\n';
-        errorMsg += '1. Open your n8n workflow: https://n8n.srv980418.hstgr.cloud\n';
-        errorMsg += '2. Find the "Respond to Webhook" node (last node in workflow)\n';
-        errorMsg += '3. Click on "Respond to Webhook" node to edit it\n';
-        errorMsg += '4. Check these settings:\n';
-        errorMsg += '   ✅ "Respond With" = "JSON"\n';
-        errorMsg += '   ✅ "Response Body" should contain:\n';
-        errorMsg += '      {\n';
-        errorMsg += '        "success": true,\n';
-        errorMsg += '        "extractedText": "={{ $json.choices[0].message.content }}"\n';
-        errorMsg += '      }\n\n';
-        errorMsg += '5. Make sure the node is connected to the previous node\n';
-        errorMsg += '6. Save the workflow\n';
-        errorMsg += '7. Test the workflow manually to verify it returns data\n\n';
+        errorMsg += 'OPTION A: Fix the root cause (OCR node error)\n';
+        errorMsg += '1. Open your n8n workflow: ' + n8nInstanceUrl + '\n';
+        errorMsg += '2. Check "Amazon Nova 2 Lite OCR" node for errors\n';
+        errorMsg += '3. Fix payment/API key issues\n\n';
+        errorMsg += 'OPTION B: Add error handling in workflow\n';
+        errorMsg += '1. Add an "IF" node after "Amazon Nova 2 Lite OCR" node\n';
+        errorMsg += '2. Check if OCR node succeeded\n';
+        errorMsg += '3. If failed, format error response and send to "Respond to Webhook"\n';
+        errorMsg += '4. Update "Respond to Webhook" Response Body:\n';
+        errorMsg += '   {\n';
+        errorMsg += '     "success": {{ $json.success || false }},\n';
+        errorMsg += '     "extractedText": "={{ $json.extractedText || \'\' }}",\n';
+        errorMsg += '     "error": "={{ $json.error || \'\' }}"\n';
+        errorMsg += '   }\n\n';
         errorMsg += `📊 Current Response:\n`;
         errorMsg += `   - Status: ${response.status} (OK)\n`;
         errorMsg += `   - Content-Type: ${response.headers.get('content-type') || 'unknown'}\n`;
         errorMsg += `   - Body length: ${responseText?.length || 0} bytes (should be > 0)\n`;
         errorMsg += `   - Webhook URL: ${NOVA_WEBHOOK_URL}\n`;
+        errorMsg += `   - Request size: ${payloadSize} bytes\n`;
         
         if (isProduction) {
           errorMsg += `\n🌐 Production: ${window.location.origin}\n`;
@@ -230,10 +258,20 @@ export const extractTextWithAmazonNova = async (file, options = {}) => {
       }
       
       // Other cases (non-200 status)
+      // Extract n8n instance URL from webhook URL
+      let n8nInstanceUrl = 'https://n8n.srv980418.hstgr.cloud'; // default
+      try {
+        const urlObj = new URL(NOVA_WEBHOOK_URL);
+        n8nInstanceUrl = `${urlObj.protocol}//${urlObj.hostname}`;
+      } catch (e) {
+        // If URL parsing fails, use default
+        console.warn('Could not parse webhook URL:', NOVA_WEBHOOK_URL);
+      }
+      
       let errorMsg = '❌ Empty response from webhook\n\n';
       errorMsg += '🔴 POSSIBLE ISSUES:\n';
       errorMsg += '1. ⚠️ n8n workflow is NOT ACTIVE\n';
-      errorMsg += '   → Go to: https://n8n.srv980418.hstgr.cloud\n';
+      errorMsg += '   → Go to: ' + n8nInstanceUrl + '\n';
       errorMsg += '   → Open your workflow and click "ACTIVE" toggle\n\n';
       errorMsg += '2. ⚠️ Webhook path mismatch\n';
       errorMsg += `   → Expected: /webhook/nova-ocr\n`;
