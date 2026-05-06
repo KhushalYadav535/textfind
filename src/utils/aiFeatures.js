@@ -1,363 +1,156 @@
-import Bytez from 'bytez.js';
-
-const BYTEZ_API_KEY = import.meta.env?.VITE_BYTEZ_API_KEY || 'c693e970502c7ac513415efe7032958e';
-
-let bytezSDK = null;
-const getBytezSDK = () => {
-  if (!bytezSDK) {
-    bytezSDK = new Bytez(BYTEZ_API_KEY);
-  }
-  return bytezSDK;
-};
-
 /**
- * Extract text content from model output
- * Handles different output formats including JSON with role/content structure
+ * AI Features — powered by Groq (Llama 3.3 70B) via local Flask server
+ * Endpoints: /api/ai/summarize, /api/ai/qa, /api/ai/entities, /api/ai/improve, /api/ai/translate
  */
-const extractContent = (output) => {
-  if (typeof output === 'string') {
-    return output;
-  }
-  
-  // Handle JSON format like {"role":"assistant","content":"..."}
-  if (output?.content) {
-    return output.content;
-  }
-  
-  // Handle other common formats
-  if (output?.text) {
-    return output.text;
-  }
-  
-  if (output?.entities) {
-    return output.entities;
-  }
-  
-  if (output?.sentiment) {
-    return output.sentiment;
-  }
-  
-  if (output?.title) {
-    return output.title;
-  }
-  
-  if (output?.improved) {
-    return output.improved;
-  }
-  
-  if (output?.table || output?.tableData) {
-    return output.table || output.tableData;
-  }
-  
-  // Handle array of messages
-  if (Array.isArray(output) && output.length > 0) {
-    const lastMessage = output[output.length - 1];
-    if (typeof lastMessage === 'string') {
-      return lastMessage;
-    }
-    return lastMessage?.content || lastMessage?.text || '';
-  }
-  
-  // Fallback: try to stringify and extract
-  const outputStr = JSON.stringify(output);
-  try {
-    const parsed = JSON.parse(outputStr);
-    return parsed.content || parsed.text || parsed.entities || parsed.sentiment || parsed.title || parsed.improved || parsed.table || parsed.tableData || outputStr;
-  } catch {
-    return outputStr;
-  }
-};
 
-/**
- * Extract entities (names, dates, locations, etc.) from text
- */
+const AI_SERVER = 'http://localhost:5000/api/ai';
+
+// ─── Entity Extraction ────────────────────────────────────────────────────────
 export const extractEntities = async (text, options = {}) => {
   const { progressCallback = null } = options;
 
-  if (!text || text.trim().length === 0) {
-    throw new Error('No text provided');
-  }
+  if (!text || text.trim().length === 0) throw new Error('No text provided');
 
   try {
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 10, message: 'Extracting entities...' });
-    }
+    if (progressCallback) progressCallback({ status: 'processing', progress: 10, message: 'Extracting entities...' });
 
-    const sdk = getBytezSDK();
-    const model = sdk.model('openai/gpt-4o-mini');
+    const response = await fetch(`${AI_SERVER}/entities`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
 
-    const prompt = `Extract all important entities from the following text. Identify:
-- Person names
-- Organization names
-- Locations/Places
-- Dates
-- Email addresses
-- Phone numbers
-- URLs
-- Important keywords
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+    const result = await response.json();
 
-Return the result as a structured list with categories.
+    if (progressCallback) progressCallback({ status: 'complete', progress: 100, message: 'Entities extracted!' });
 
-Text:
-${text}`;
-
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 50, message: 'Analyzing...' });
-    }
-
-    // Use messages array format for OpenAI models
-    const { error, output } = await model.run([
-      {
-        role: "user",
-        content: prompt
-      }
-    ]);
-
-    if (error) {
-      throw new Error(`Entity extraction error: ${error.message || error}`);
-    }
-
-    if (progressCallback) {
-      progressCallback({ status: 'complete', progress: 100, message: 'Entities extracted!' });
-    }
-
-    const entities = extractContent(output);
-
-    return {
-      entities: entities.trim()
-    };
+    return { entities: result.entities || '' };
   } catch (error) {
     console.error('Entity extraction error:', error);
     throw error;
   }
 };
 
-/**
- * Sentiment analysis
- */
+// ─── Sentiment Analysis ───────────────────────────────────────────────────────
 export const analyzeSentiment = async (text, options = {}) => {
   const { progressCallback = null } = options;
 
-  if (!text || text.trim().length === 0) {
-    throw new Error('No text provided');
-  }
+  if (!text || text.trim().length === 0) throw new Error('No text provided');
 
   try {
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 10, message: 'Analyzing sentiment...' });
-    }
+    if (progressCallback) progressCallback({ status: 'processing', progress: 10, message: 'Analyzing sentiment...' });
 
-    const sdk = getBytezSDK();
-    const model = sdk.model('openai/gpt-4o-mini');
+    // Use summarize endpoint with sentiment prompt
+    const response = await fetch(`${AI_SERVER}/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: `Analyze the sentiment of the following text. Determine if it is Positive, Negative, or Neutral. Also provide a brief explanation (1-2 sentences).\n\nText:\n${text}`,
+        style: 'paragraph',
+        length: 'short'
+      })
+    });
 
-    const prompt = `Analyze the sentiment of the following text. Determine if it is:
-- Positive
-- Negative
-- Neutral
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+    const result = await response.json();
 
-Also provide a brief explanation (1-2 sentences).
+    if (progressCallback) progressCallback({ status: 'complete', progress: 100, message: 'Analysis complete!' });
 
-Text:
-${text}`;
-
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 50, message: 'Processing...' });
-    }
-
-    // Use messages array format for OpenAI models
-    const { error, output } = await model.run([
-      {
-        role: "user",
-        content: prompt
-      }
-    ]);
-
-    if (error) {
-      throw new Error(`Sentiment analysis error: ${error.message || error}`);
-    }
-
-    if (progressCallback) {
-      progressCallback({ status: 'complete', progress: 100, message: 'Analysis complete!' });
-    }
-
-    const analysis = extractContent(output);
-
-    return {
-      analysis: analysis.trim()
-    };
+    return { analysis: result.summary || '' };
   } catch (error) {
     console.error('Sentiment analysis error:', error);
     throw error;
   }
 };
 
-/**
- * Generate document title
- */
+// ─── Generate Title ───────────────────────────────────────────────────────────
 export const generateTitle = async (text, options = {}) => {
   const { progressCallback = null } = options;
 
-  if (!text || text.trim().length === 0) {
-    throw new Error('No text provided');
-  }
+  if (!text || text.trim().length === 0) throw new Error('No text provided');
 
   try {
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 10, message: 'Generating title...' });
-    }
+    if (progressCallback) progressCallback({ status: 'processing', progress: 10, message: 'Generating title...' });
 
-    const sdk = getBytezSDK();
-    const model = sdk.model('openai/gpt-4o-mini');
+    const response = await fetch(`${AI_SERVER}/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: `Generate a concise, descriptive title (maximum 10 words) for the following document. Return ONLY the title, no explanation.\n\nDocument:\n${text}`,
+        style: 'paragraph',
+        length: 'short'
+      })
+    });
 
-    const prompt = `Generate a concise, descriptive title (maximum 10 words) for the following document:
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+    const result = await response.json();
 
-${text}
+    if (progressCallback) progressCallback({ status: 'complete', progress: 100, message: 'Title generated!' });
 
-Title:`;
-
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 50, message: 'Creating title...' });
-    }
-
-    // Use messages array format for OpenAI models
-    const { error, output } = await model.run([
-      {
-        role: "user",
-        content: prompt
-      }
-    ]);
-
-    if (error) {
-      throw new Error(`Title generation error: ${error.message || error}`);
-    }
-
-    if (progressCallback) {
-      progressCallback({ status: 'complete', progress: 100, message: 'Title generated!' });
-    }
-
-    const title = extractContent(output);
-
-    return {
-      title: title.trim().replace(/^["']|["']$/g, '') // Remove quotes
-    };
+    const title = (result.summary || '').replace(/^["']|["']$/g, '').split('\n')[0].trim();
+    return { title };
   } catch (error) {
     console.error('Title generation error:', error);
     throw error;
   }
 };
 
-/**
- * Improve/rewrite text
- */
+// ─── Improve Text ─────────────────────────────────────────────────────────────
 export const improveText = async (text, options = {}) => {
   const { style = 'professional', progressCallback = null } = options;
 
-  if (!text || text.trim().length === 0) {
-    throw new Error('No text provided');
-  }
+  if (!text || text.trim().length === 0) throw new Error('No text provided');
 
   try {
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 10, message: 'Improving text...' });
-    }
+    if (progressCallback) progressCallback({ status: 'processing', progress: 10, message: 'Improving text...' });
 
-    const sdk = getBytezSDK();
-    const model = sdk.model('openai/gpt-4o-mini');
+    const response = await fetch(`${AI_SERVER}/improve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, style })
+    });
 
-    const styleInstructions = {
-      professional: 'in a professional, formal style',
-      casual: 'in a casual, friendly style',
-      academic: 'in an academic, scholarly style',
-      simple: 'in simple, easy-to-understand language'
-    };
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+    const result = await response.json();
 
-    const prompt = `Rewrite the following text ${styleInstructions[style]}. Improve grammar, clarity, and flow while preserving the original meaning:
+    if (progressCallback) progressCallback({ status: 'complete', progress: 100, message: 'Text improved!' });
 
-${text}`;
-
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 50, message: 'Rewriting...' });
-    }
-
-    // Use messages array format for OpenAI models
-    const { error, output } = await model.run([
-      {
-        role: "user",
-        content: prompt
-      }
-    ]);
-
-    if (error) {
-      throw new Error(`Text improvement error: ${error.message || error}`);
-    }
-
-    if (progressCallback) {
-      progressCallback({ status: 'complete', progress: 100, message: 'Text improved!' });
-    }
-
-    const improved = extractContent(output);
-
-    return {
-      improved: improved.trim(),
-      original: text
-    };
+    return { improved: result.improved || '', original: text };
   } catch (error) {
     console.error('Text improvement error:', error);
     throw error;
   }
 };
 
-/**
- * Extract table data from text
- */
+// ─── Extract Table Data ───────────────────────────────────────────────────────
 export const extractTableData = async (text, options = {}) => {
   const { progressCallback = null } = options;
 
-  if (!text || text.trim().length === 0) {
-    throw new Error('No text provided');
-  }
+  if (!text || text.trim().length === 0) throw new Error('No text provided');
 
   try {
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 10, message: 'Extracting table data...' });
-    }
+    if (progressCallback) progressCallback({ status: 'processing', progress: 10, message: 'Extracting table data...' });
 
-    const sdk = getBytezSDK();
-    const model = sdk.model('openai/gpt-4o-mini');
+    const response = await fetch(`${AI_SERVER}/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: `Extract any tabular data from the following text. If tables are present, format them as CSV. If no tables exist, return "No table data found".\n\nText:\n${text}`,
+        style: 'paragraph',
+        length: 'medium'
+      })
+    });
 
-    const prompt = `Extract any tabular data from the following text. If tables are present, format them as CSV. If no tables, return "No table data found":
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+    const result = await response.json();
 
-${text}`;
+    if (progressCallback) progressCallback({ status: 'complete', progress: 100, message: 'Table data extracted!' });
 
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 50, message: 'Analyzing...' });
-    }
-
-    // Use messages array format for OpenAI models
-    const { error, output } = await model.run([
-      {
-        role: "user",
-        content: prompt
-      }
-    ]);
-
-    if (error) {
-      throw new Error(`Table extraction error: ${error.message || error}`);
-    }
-
-    if (progressCallback) {
-      progressCallback({ status: 'complete', progress: 100, message: 'Table data extracted!' });
-    }
-
-    const tableData = extractContent(output);
-
-    return {
-      tableData: tableData.trim(),
-      hasTable: !tableData.toLowerCase().includes('no table')
-    };
+    const tableData = result.summary || '';
+    return { tableData, hasTable: !tableData.toLowerCase().includes('no table') };
   } catch (error) {
     console.error('Table extraction error:', error);
     throw error;
   }
 };
-

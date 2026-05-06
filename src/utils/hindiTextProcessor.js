@@ -1,5 +1,5 @@
 // Specialized Hindi text processing utilities
-import { extractTextFromMultipleFiles } from '../api/amazonNovaOcrClient.js';
+import { extractTextFromImage } from '../api/localOcrClient.js';
 
 /**
  * Enhanced Hindi text extraction with better OCR settings
@@ -42,12 +42,8 @@ export const extractHindiTextFromImages = async (images, options = {}) => {
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: 'image/png' });
       
-      // Use Amazon Nova 2 Lite OCR for Hindi text extraction
-      // Amazon Nova 2 Lite automatically handles multiple languages including Hindi
-      const result = await extractTextFromMultipleFiles([{
-        file: blob,
-        pageNumber: image.pageNumber
-      }], {
+      // Use Local PaddleOCR for Hindi text extraction
+      const ocrResult = await extractTextFromImage(blob, {
         progressCallback: (progress) => {
           if (progressCallback) {
             progressCallback({
@@ -62,16 +58,13 @@ export const extractHindiTextFromImages = async (images, options = {}) => {
         }
       });
       
-      // Get the first result (we're processing one image at a time)
-      const ocrResult = result[0] || { text: '', confidence: 0 };
-      
       // Clean up the extracted text
-      const cleanedText = cleanHindiText(ocrResult.text);
+      const cleanedText = cleanHindiText(ocrResult.data.text);
       
       results.push({
         pageNumber: image.pageNumber,
         text: cleanedText,
-        confidence: Math.round(ocrResult.confidence || 95), // Amazon Nova doesn't return confidence, so we estimate high
+        confidence: Math.round(ocrResult.data.confidence || 95),
         wordCount: cleanedText.trim().split(/\s+/).filter(w => w.length > 0).length,
         language: 'hindi'
       });

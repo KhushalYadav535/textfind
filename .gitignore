@@ -16,6 +16,9 @@ dist-ssr
 .env
 .env.local
 .env.production
+**/.env
+**/.env.local
+**/.env.production
 
 # Documentation files (Markdown)
 *.md

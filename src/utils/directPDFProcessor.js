@@ -1,5 +1,5 @@
 // Direct PDF processing without external dependencies
-import { extractTextWithAmazonNova, extractTextFromMultipleFiles } from '../api/amazonNovaOcrClient.js';
+import { extractTextFromImage } from '../api/localOcrClient.js';
 
 /**
  * Convert PDF to images using Canvas API (no PDF.js dependency)
@@ -100,8 +100,8 @@ export const processPDFDirect = async (pdfFile, options = {}) => {
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: 'image/png' });
         
-        // Use Amazon Nova 2 Lite OCR
-        const result = await extractTextWithAmazonNova(blob, {
+        // Use Local OCR
+        const result = await extractTextFromImage(blob, {
           progressCallback: null
         });
         

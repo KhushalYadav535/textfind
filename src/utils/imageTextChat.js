@@ -1,209 +1,115 @@
-import Bytez from 'bytez.js';
-
-const BYTEZ_API_KEY = import.meta.env?.VITE_BYTEZ_API_KEY || 'c693e970502c7ac513415efe7032958e';
-
-let bytezSDK = null;
-const getBytezSDK = () => {
-  if (!bytezSDK) {
-    bytezSDK = new Bytez(BYTEZ_API_KEY);
-  }
-  return bytezSDK;
-};
-
 /**
- * Chat with image - Ask questions about image content
+ * Image Text Chat — uses local PaddleOCR (Flask) for OCR + Groq for chat
+ * Image analysis via text: first extract text from image, then chat about it
  */
+
+const AI_SERVER = 'http://localhost:5000/api';
+
+const imageToBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result.split(',')[1]);
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
 export const chatWithImage = async (imageFile, question, options = {}) => {
   const { progressCallback = null } = options;
 
-  if (!imageFile) {
-    throw new Error('No image provided');
+  if (!imageFile) throw new Error('No image provided');
+  if (!question?.trim()) throw new Error('No question');
+
+  if (progressCallback) progressCallback({ status: 'extracting', progress: 20, message: 'Extracting text from image...' });
+
+  // Step 1: Extract text using local PaddleOCR
+  const base64 = await imageToBase64(imageFile);
+  const ocrRes = await fetch(`${AI_SERVER}/extract-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: base64, lang: 'en' })
+  });
+
+  let extractedText = '';
+  if (ocrRes.ok) {
+    const ocrData = await ocrRes.json();
+    extractedText = ocrData.text || '';
   }
 
-  if (!question || question.trim().length === 0) {
-    throw new Error('No question provided');
-  }
+  if (progressCallback) progressCallback({ status: 'analyzing', progress: 60, message: 'Asking Groq AI...' });
 
-  try {
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 10, message: 'Processing image...' });
-    }
-
-    // Convert image to base64
-    const imageDataUrl = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(imageFile);
-    });
-
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 30, message: 'Analyzing image...' });
-    }
-
-    const sdk = getBytezSDK();
-    // Use vision model for image understanding
-    const model = sdk.model('openai/gpt-4o-mini'); // Vision-capable model
-
-    const prompt = `You are analyzing an image. Answer the following question about the image content. Be specific and detailed.
-
-Question: ${question}
-
-Answer based on what you see in the image:`;
-
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 50, message: 'Generating response...' });
-    }
-
-    const { error, output } = await model.run({
-      image: imageDataUrl,
-      prompt: prompt
-    });
-
-    if (error) {
-      throw new Error(`Image chat error: ${error.message || error}`);
-    }
-
-    if (progressCallback) {
-      progressCallback({ status: 'complete', progress: 100, message: 'Response generated!' });
-    }
-
-    const response = typeof output === 'string' ? output : (output?.response || output?.text || output?.answer || JSON.stringify(output));
-
-    return {
-      response: response.trim(),
+  // Step 2: Answer question about extracted text
+  const qaRes = await fetch(`${AI_SERVER}/ai/qa`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: extractedText || `[No text could be extracted from image. The question was: ${question}]`,
       question
-    };
-  } catch (error) {
-    console.error('Image chat error:', error);
-    throw error;
-  }
+    })
+  });
+
+  if (!qaRes.ok) throw new Error(`Server error: ${qaRes.status}`);
+  const result = await qaRes.json();
+
+  if (progressCallback) progressCallback({ status: 'complete', progress: 100, message: 'Done!' });
+
+  return { response: result.answer || 'Could not generate a response.' };
 };
 
-/**
- * Describe image content
- */
 export const describeImage = async (imageFile, options = {}) => {
-  const { detail = 'medium', progressCallback = null } = options;
+  const { progressCallback = null } = options;
 
-  if (!imageFile) {
-    throw new Error('No image provided');
+  if (!imageFile) throw new Error('No image provided');
+
+  if (progressCallback) progressCallback({ status: 'extracting', progress: 30, message: 'Extracting text...' });
+
+  const base64 = await imageToBase64(imageFile);
+  const ocrRes = await fetch(`${AI_SERVER}/extract-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: base64, lang: 'en' })
+  });
+
+  let extractedText = '';
+  if (ocrRes.ok) {
+    const ocrData = await ocrRes.json();
+    extractedText = ocrData.text || '';
   }
 
-  try {
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 10, message: 'Processing image...' });
-    }
+  if (progressCallback) progressCallback({ status: 'analyzing', progress: 60, message: 'Generating description...' });
 
-    // Convert image to base64
-    const imageDataUrl = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(imageFile);
-    });
+  const sumRes = await fetch(`${AI_SERVER}/ai/summarize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: extractedText || 'No text found in image.',
+      style: 'paragraph',
+      length: 'short'
+    })
+  });
 
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 30, message: 'Analyzing image...' });
-    }
+  const result = await sumRes.json();
+  if (progressCallback) progressCallback({ status: 'complete', progress: 100, message: 'Done!' });
 
-    const sdk = getBytezSDK();
-    const model = sdk.model('openai/gpt-4o-mini');
-
-    const detailInstructions = {
-      brief: 'briefly',
-      medium: 'in detail',
-      comprehensive: 'comprehensively with all details'
-    };
-
-    const prompt = `Describe this image ${detailInstructions[detail]}. Include what you see, any text in the image, objects, people, colors, layout, and context.`;
-
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 50, message: 'Generating description...' });
-    }
-
-    const { error, output } = await model.run({
-      image: imageDataUrl,
-      prompt: prompt
-    });
-
-    if (error) {
-      throw new Error(`Image description error: ${error.message || error}`);
-    }
-
-    if (progressCallback) {
-      progressCallback({ status: 'complete', progress: 100, message: 'Description generated!' });
-    }
-
-    const description = typeof output === 'string' ? output : (output?.description || output?.text || JSON.stringify(output));
-
-    return {
-      description: description.trim()
-    };
-  } catch (error) {
-    console.error('Image description error:', error);
-    throw error;
-  }
+  return { description: result.summary || extractedText || 'No content detected in image.' };
 };
 
-/**
- * Extract text from image using vision model
- */
 export const extractTextFromImageVision = async (imageFile, options = {}) => {
   const { progressCallback = null } = options;
 
-  if (!imageFile) {
-    throw new Error('No image provided');
-  }
+  if (!imageFile) throw new Error('No image provided');
 
-  try {
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 10, message: 'Processing image...' });
-    }
+  if (progressCallback) progressCallback({ status: 'extracting', progress: 30, message: 'Running OCR...' });
 
-    // Convert image to base64
-    const imageDataUrl = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(imageFile);
-    });
+  const base64 = await imageToBase64(imageFile);
+  const res = await fetch(`${AI_SERVER}/extract-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: base64, lang: 'en' })
+  });
 
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 30, message: 'Extracting text from image...' });
-    }
+  if (!res.ok) throw new Error(`OCR error: ${res.status}`);
+  const data = await res.json();
 
-    const sdk = getBytezSDK();
-    const model = sdk.model('openai/gpt-4o-mini');
+  if (progressCallback) progressCallback({ status: 'complete', progress: 100, message: 'Text extracted!' });
 
-    const prompt = `Extract all text from this image. Return ONLY the text content, preserving line breaks and structure. Do not add any explanation or additional text.`;
-
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 50, message: 'Reading text...' });
-    }
-
-    const { error, output } = await model.run({
-      image: imageDataUrl,
-      prompt: prompt
-    });
-
-    if (error) {
-      throw new Error(`Text extraction error: ${error.message || error}`);
-    }
-
-    if (progressCallback) {
-      progressCallback({ status: 'complete', progress: 100, message: 'Text extracted!' });
-    }
-
-    const extractedText = typeof output === 'string' ? output : (output?.text || output?.extractedText || JSON.stringify(output));
-
-    return {
-      text: extractedText.trim(),
-      confidence: extractedText.length > 0 ? 95 : 0
-    };
-  } catch (error) {
-    console.error('Image text extraction error:', error);
-    throw error;
-  }
+  return { text: data.text || 'No text found.' };
 };
-

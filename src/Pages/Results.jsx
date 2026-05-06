@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "../api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "../utils";
-import { Copy, Download, RotateCcw, CheckCircle, ImageIcon, FileText, Type, Eye, Languages, Undo2, Redo2, BarChart3, Share2, Keyboard, Tag, Sparkles, MessageSquare, Brain } from "lucide-react";
+import { Copy, Download, RotateCcw, CheckCircle, ImageIcon, FileText, Type, Eye, Languages, Undo2, Redo2, BarChart3, Share2, Keyboard, Tag, Sparkles, MessageSquare, Brain, Shield, FileSearch, FileSpreadsheet } from "lucide-react";
 import { autoTranslate, detectLanguage } from "../api/translationClient";
 import toast from "react-hot-toast";
 import { Skeleton } from "../components/ui/skeleton";
@@ -17,6 +17,7 @@ import DocumentSummarizer from "../components/ai/DocumentSummarizer";
 import QuestionAnswering from "../components/ai/QuestionAnswering";
 import ImageTextChat from "../components/ai/ImageTextChat";
 import AIFeaturesPanel from "../components/ai/AIFeaturesPanel";
+import { DocumentChat, SmartExtractionPanel, RedactionPanel, ExcelExportButton, OutlineGenerator, FlashcardGenerator, ActionItemsExtractor, ReadingAnalyzer } from "../components/ai/SmartFeatures";
 import { AutoSaveManager } from "../utils/autoSave";
 import { QRCodeScanner } from "../utils/qrBarcodeScanner";
 import { UndoRedoManager } from "../utils/undoRedo";
@@ -44,7 +45,10 @@ export default function Results() {
   const [autoSaveManager, setAutoSaveManager] = useState(null);
   const [targetLanguage, setTargetLanguage] = useState(null); // Will be set based on detected language
   const [showAIFeatures, setShowAIFeatures] = useState(false);
-  const [activeAIFeature, setActiveAIFeature] = useState('summary'); // summary, qa, imagechat
+  const [activeAIFeature, setActiveAIFeature] = useState('summary');
+  const [showDocChat, setShowDocChat] = useState(false);
+  const [showSmartExtract, setShowSmartExtract] = useState(false);
+  const [showRedaction, setShowRedaction] = useState(false);
   const textareaRef = useRef(null);
 
   useEffect(() => {
@@ -393,6 +397,8 @@ export default function Results() {
               <Share2 className="w-4 h-4" />
               Export
             </button>
+            {/* Excel Export */}
+            <ExcelExportButton documentText={editedText} filename={record?.original_filename?.replace(/\.[^/.]+$/, '') || 'document'} />
             <button
               onClick={() => setShowStats(!showStats)}
               className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white transition-all duration-300"
@@ -400,20 +406,48 @@ export default function Results() {
               <BarChart3 className="w-4 h-4" />
               Stats
             </button>
+            {/* Smart Extraction */}
+            <button
+              onClick={() => setShowSmartExtract(!showSmartExtract)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-white transition-all duration-300 ${
+                showSmartExtract ? 'bg-cyan-600' : 'bg-white/5 hover:bg-white/10 border border-white/10'
+              }`}
+            >
+              <FileSearch className="w-4 h-4" />
+              Smart Extract
+            </button>
+            {/* PII Redaction */}
+            <button
+              onClick={() => setShowRedaction(!showRedaction)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-white transition-all duration-300 ${
+                showRedaction ? 'bg-red-600' : 'bg-white/5 hover:bg-white/10 border border-white/10'
+              }`}
+            >
+              <Shield className="w-4 h-4" />
+              Redact PII
+            </button>
             <button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('AI Features button clicked, current state:', showAIFeatures);
                 const newState = !showAIFeatures;
                 setShowAIFeatures(newState);
-                console.log('Setting AI Features to:', newState);
                 toast.success(newState ? 'AI Features opened' : 'AI Features closed');
               }}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl text-white font-semibold transition-all duration-300 hover:scale-105"
             >
               <Brain className="w-4 h-4" />
               AI Features
+            </button>
+            {/* Document Chat */}
+            <button
+              onClick={() => setShowDocChat(!showDocChat)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-white font-semibold transition-all duration-300 hover:scale-105 ${
+                showDocChat ? 'bg-purple-600' : 'bg-gradient-to-r from-purple-600 to-indigo-600'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              Chat with Doc
             </button>
             <div className="flex items-center gap-2">
               <TranslationLanguageSelector
@@ -694,6 +728,34 @@ export default function Results() {
           </div>
         )}
 
+        {/* Smart Extraction Panel */}
+        {showSmartExtract && (
+          <div className="mt-6">
+            <SmartExtractionPanel documentText={editedText} />
+          </div>
+        )}
+
+        {/* PII Redaction Panel */}
+        {showRedaction && (
+          <div className="mt-6">
+            <RedactionPanel
+              documentText={editedText}
+              onRedacted={(redactedText) => {
+                handleTextChange(redactedText);
+                setShowRedaction(false);
+                toast.success('Redacted text applied to editor!');
+              }}
+            />
+          </div>
+        )}
+
+        {/* Document Chat (floating) */}
+        <DocumentChat
+          documentText={editedText}
+          isOpen={showDocChat}
+          onClose={() => setShowDocChat(false)}
+        />
+
         {/* Additional AI Features */}
         {showAIFeatures && (
           <div className="mt-6">
@@ -793,6 +855,16 @@ export default function Results() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── New Advanced Feature Panels ─────────────────────────────── */}
+        {editedText && (
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ReadingAnalyzer documentText={editedText} />
+            <OutlineGenerator documentText={editedText} />
+            <FlashcardGenerator documentText={editedText} />
+            <ActionItemsExtractor documentText={editedText} />
           </div>
         )}
 

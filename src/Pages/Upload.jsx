@@ -9,6 +9,7 @@ import LanguageSelector from "../components/upload/LanguageSelector";
 import ImagePreprocessorPanel from "../components/upload/ImagePreprocessorPanel";
 import BatchUpload from "../components/upload/BatchUpload";
 import { processPDFWithOCR, analyzePDF } from "../utils/pdfUtils";
+import { extractTextFromImage } from "../api/localOcrClient";
 import { AlertCircle, Upload as UploadIcon, Layers } from "lucide-react";
 
 export default function Upload() {
@@ -112,23 +113,23 @@ export default function Upload() {
         setProgress(20);
         file_url = URL.createObjectURL(file);
 
-        // Step 2: Extract text using Amazon Nova 2 Lite OCR
+        // Step 2: Extract text using local PaddleOCR
         setProgress(50);
-        const extractResult = await base44.ExtractDataFromUploadedFile(file, {
+        const extractResult = await extractTextFromImage(file, {
           progressCallback: (progress) => {
             setProgress(50 + (progress.progress || 0) * 0.3);
-            setProcessingStatus(progress.message || 'Processing with OCR...');
+            setProcessingStatus(progress.message || 'Processing with PaddleOCR...');
           }
         });
         
         result = {
           status: "success",
           output: {
-            text: extractResult.text || "",
-            confidence: extractResult.confidence || 0,
+            text: extractResult.data?.text || "",
+            confidence: extractResult.data?.confidence || 0,
             type: 'image',
             pages: 1,
-            words: extractResult.text ? extractResult.text.split(/\s+/).length : 0
+            words: extractResult.data?.text ? extractResult.data.text.split(/\s+/).length : 0
           }
         };
 

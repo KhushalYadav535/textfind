@@ -1,6 +1,6 @@
 // PDF processing utilities for both text-based and scanned PDFs
 import * as pdfjsLib from 'pdfjs-dist';
-import { extractTextWithAmazonNova, extractTextFromMultipleFiles } from '../api/amazonNovaOcrClient.js';
+import { extractTextFromImage, extractTextFromPDF } from '../api/localOcrClient.js';
 import { processPDFFallback } from './pdfProcessorFallback.js';
 import { processPDFSimple } from './simplePDFProcessor.js';
 import { processPDFEnhanced } from './enhancedPDFProcessor.js';
@@ -189,27 +189,46 @@ export const extractTextFromImages = async (images, options = {}) => {
     };
   });
   
-  // Use Amazon Nova 2 Lite OCR to process all images
+  // Use local PaddleOCR to process all images
   try {
-    const ocrResults = await extractTextFromMultipleFiles(imageFiles, {
-      apiKey,
-      progressCallback: (progress) => {
-        if (progressCallback) {
-          progressCallback({
-            current: progress.current || 0,
-            total: progress.total || totalImages,
-            pageNumber: progress.pageNumber || 0,
-            status: progress.status || 'processing',
-            progress: progress.progress || 0,
-            message: progress.message
-          });
-        }
+    const totalImages = imageFiles.length;
+    const ocrResults = [];
+    
+    for (let i = 0; i < imageFiles.length; i++) {
+      const fileObj = imageFiles[i];
+      if (progressCallback) {
+        progressCallback({
+          current: i + 1,
+          total: totalImages,
+          pageNumber: fileObj.pageNumber || i + 1,
+          status: 'processing',
+          message: `Processing page ${i + 1}/${totalImages}...`
+        });
       }
-    });
+      
+      try {
+        const result = await extractTextFromImage(fileObj.file, { progressCallback });
+        ocrResults.push({
+          pageNumber: fileObj.pageNumber || i + 1,
+          text: result.data.text.trim(),
+          confidence: result.data.confidence,
+          wordCount: result.data.text.trim().split(/\s+/).filter(w => w.length > 0).length
+        });
+      } catch (err) {
+        console.error(`Error processing file ${i + 1}:`, err);
+        ocrResults.push({
+          pageNumber: fileObj.pageNumber || i + 1,
+          text: '',
+          confidence: 0,
+          wordCount: 0,
+          error: err.message
+        });
+      }
+    }
     
     return ocrResults;
   } catch (error) {
-    console.error('Error processing images with Amazon Nova 2 Lite OCR:', error);
+    console.error('Error processing images with PaddleOCR:', error);
     // Return empty results for all pages on error
     return images.map(image => ({
       pageNumber: image.pageNumber,
@@ -241,44 +260,28 @@ export const processPDF = async (pdfFile, options = {}) => {
   } = options;
   
   try {
-    // Skip direct PDF processing - PDFs are often too large for webhook
-    // Go directly to page-by-page processing (convert PDF to images, then OCR each page)
-    // This is more reliable and works better with the webhook
-    
-    // Step 1: Analyze PDF and convert to images
     if (progressCallback) {
-      progressCallback({ status: 'analyzing', message: 'Analyzing PDF type...' });
+      progressCallback({ status: 'analyzing', message: 'Sending PDF to MinerU (layout-aware extraction)...' });
     }
     
+    // Process PDF directly using MinerU
+    const result = await extractTextFromPDF(pdfFile, { progressCallback });
+    
+    // Analysis is now simple
     const analysis = await analyzePDFType(pdfFile);
     
-    if (progressCallback) {
-      progressCallback({ status: 'converting', message: 'Converting PDF to images...' });
-    }
-    
-    // Convert PDF pages to images
-    const images = await convertPDFToImages(pdfFile, { maxPages });
-    
-    if (progressCallback) {
-      progressCallback({ status: 'ocr_processing', message: 'Running Amazon Nova 2 Lite OCR on pages...' });
-    }
-    
-    // Process each page with Amazon Nova 2 Lite OCR
-    const ocrResults = await extractTextFromImages(images, { 
-      languages, 
-      progressCallback,
-      apiKey 
-    });
-    
     return {
-      type: analysis.hasText ? 'text_based' : 'scanned',
+      type: 'mineru_extracted',
       analysis,
-      pages: ocrResults,
-      totalText: ocrResults.map(r => r.text).join('\n\n'),
-      totalConfidence: ocrResults.length > 0 
-        ? ocrResults.reduce((sum, r) => sum + r.confidence, 0) / ocrResults.length 
-        : 0,
-      totalWords: ocrResults.reduce((sum, r) => sum + r.wordCount, 0)
+      pages: [{
+        pageNumber: 1,
+        text: result.data.text,
+        confidence: result.data.confidence,
+        wordCount: result.data.text.trim().split(/\s+/).filter(w => w.length > 0).length
+      }],
+      totalText: result.data.text,
+      totalConfidence: result.data.confidence,
+      totalWords: result.data.text.trim().split(/\s+/).filter(w => w.length > 0).length
     };
   } catch (error) {
     console.error('Error processing PDF:', error);

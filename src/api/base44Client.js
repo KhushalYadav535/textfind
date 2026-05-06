@@ -3,17 +3,14 @@
  * Handles OCR processing and data storage
  */
 
-import { extractTextWithAmazonNova } from './amazonNovaOcrClient.js';
-import { extractTextWithBytez } from './bytezOcrClient.js';
+import { extractTextFromImage, extractTextFromPDF } from './localOcrClient.js';
 import { removeFileDataFromHistory, clearOldStorage } from '../utils/localStorageHelper.js';
 
 export const base44 = {
   integrations: {
-    amazonNova: {
-      extractText: extractTextWithAmazonNova
-    },
-    bytez: {
-      extractText: extractTextWithBytez
+    localOcr: {
+      extractTextFromImage,
+      extractTextFromPDF
     }
   },
   
@@ -249,77 +246,48 @@ export const base44 = {
       let confidence = 0;
       
       if (isImage) {
-        // Use Bytez by default, fallback to Amazon Nova
-        const useBytez = options.useBytez !== false; // Default to true
-        
-        if (useBytez) {
-          console.log('Image file detected, processing with Bytez OCR...');
-          if (progressCallback) {
-            progressCallback({ status: 'converting', message: 'Converting file to base64...' });
-          }
-          
-          const ocrOptions = {
-            ...(apiKey && { apiKey }),
-            progressCallback: (progress) => {
-              if (progressCallback) {
-                progressCallback({
-                  status: progress.status || 'processing',
-                  message: progress.message || 'Processing with Bytez OCR...',
-                  progress: progress.progress || 0
-                });
-              }
-            }
-          };
-          
-          try {
-            const result = await extractTextWithBytez(file, ocrOptions);
-            extractedText = result.data.text || '';
-            confidence = result.data.confidence || 0;
-          } catch (bytezError) {
-            console.warn('Bytez OCR failed, falling back to Amazon Nova:', bytezError);
-            // Fallback to Amazon Nova
-            const ocrOptions = {
-              ...(apiKey && { apiKey }),
-              progressCallback: (progress) => {
-                if (progressCallback) {
-                  progressCallback({
-                    status: progress.status || 'processing',
-                    message: progress.message || 'Processing with Amazon Nova 2 Lite OCR...',
-                    progress: progress.progress || 0
-                  });
-                }
-              }
-            };
-            const result = await extractTextWithAmazonNova(file, ocrOptions);
-            extractedText = result.data.text || '';
-            confidence = result.data.confidence || 0;
-          }
-        } else {
-          console.log('Image file detected, processing with Amazon Nova 2 Lite OCR...');
-          if (progressCallback) {
-            progressCallback({ status: 'converting', message: 'Converting file to base64...' });
-          }
-          
-          const ocrOptions = {
-            ...(apiKey && { apiKey }),
-            progressCallback: (progress) => {
-              if (progressCallback) {
-                progressCallback({
-                  status: progress.status || 'processing',
-                  message: progress.message || 'Processing with Amazon Nova 2 Lite OCR...',
-                  progress: progress.progress || 0
-                });
-              }
-            }
-          };
-          
-          const result = await extractTextWithAmazonNova(file, ocrOptions);
-          extractedText = result.data.text || '';
-          confidence = result.data.confidence || 0;
+        console.log('Image file detected, processing with local PaddleOCR...');
+        if (progressCallback) {
+          progressCallback({ status: 'converting', message: 'Sending to local server...' });
         }
+        
+        const ocrOptions = {
+          progressCallback: (progress) => {
+            if (progressCallback) {
+              progressCallback({
+                status: progress.status || 'processing',
+                message: progress.message || 'Processing with PaddleOCR...',
+                progress: progress.progress || 0
+              });
+            }
+          }
+        };
+        
+        const result = await extractTextFromImage(file, ocrOptions);
+        extractedText = result.data.text || '';
+        confidence = result.data.confidence || 0;
       } else {
-        // PDF handling would go here
-        throw new Error('PDF processing not implemented in this function. Use processPDF instead.');
+        // PDF handling
+        console.log('PDF file detected, processing with local MinerU...');
+        if (progressCallback) {
+          progressCallback({ status: 'converting', message: 'Sending to local server...' });
+        }
+        
+        const ocrOptions = {
+          progressCallback: (progress) => {
+            if (progressCallback) {
+              progressCallback({
+                status: progress.status || 'processing',
+                message: progress.message || 'Processing with MinerU...',
+                progress: progress.progress || 0
+              });
+            }
+          }
+        };
+        
+        const result = await extractTextFromPDF(file, ocrOptions);
+        extractedText = result.data.text || '';
+        confidence = result.data.confidence || 0;
       }
       
       if (!extractedText || extractedText.trim().length === 0) {
@@ -334,7 +302,7 @@ export const base44 = {
       };
       
     } catch (error) {
-      console.error('Amazon Nova 2 Lite OCR Error:', error);
+      console.error('Local OCR Error:', error);
       throw error;
     }
   }

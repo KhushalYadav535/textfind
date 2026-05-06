@@ -1,13 +1,22 @@
 /**
- * Translation Client using Amazon Nova 2 Lite via OpenRouter
- * Translates text between Hindi and English
+ * Translation Client — MyMemory API (Free, No Key, <1 second response)
+ * Falls back to Ollama VPS for unsupported language pairs
+ * MyMemory supports: Hindi, English, Spanish, French, German, Chinese, Japanese, etc.
  */
 
 import { containsHindiText } from '../utils/hindiTextProcessor.js';
 
-// Configuration
-const NOVA_API_KEY = import.meta.env?.VITE_NOVA_API_KEY || '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';
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const MYMEMORY_URL = 'https://api.mymemory.translated.net/get';
+const AI_SERVER = 'http://localhost:5000/api';
+
+// Language code to name mapping
+const LANGUAGE_NAMES = {
+  'en': 'English', 'hi': 'Hindi', 'es': 'Spanish', 'fr': 'French',
+  'de': 'German', 'zh': 'Chinese', 'ja': 'Japanese', 'ko': 'Korean',
+  'ar': 'Arabic', 'pt': 'Portuguese', 'ru': 'Russian', 'it': 'Italian',
+  'nl': 'Dutch', 'pl': 'Polish', 'tr': 'Turkish', 'vi': 'Vietnamese',
+  'th': 'Thai', 'id': 'Indonesian',
+};
 
 /**
  * Detect if text is primarily Hindi or English
@@ -16,144 +25,138 @@ export const detectLanguage = (text) => {
   if (!text || text.trim().length === 0) {
     return { isHindi: false, isEnglish: false, confidence: 0 };
   }
-
   const hindiChars = (text.match(/[\u0900-\u097F]/g) || []).length;
   const englishChars = (text.match(/[a-zA-Z]/g) || []).length;
   const totalChars = text.length;
-
-  if (totalChars === 0) {
-    return { isHindi: false, isEnglish: false, confidence: 0 };
-  }
-
   const hindiPercentage = (hindiChars / totalChars) * 100;
   const englishPercentage = (englishChars / totalChars) * 100;
-
   const isHindi = hindiPercentage > 10;
   const isEnglish = !isHindi && englishPercentage > 20;
-
   return {
-    isHindi,
-    isEnglish,
+    isHindi, isEnglish,
     confidence: isHindi ? hindiPercentage : (isEnglish ? englishPercentage : 0),
-    hindiPercentage,
-    englishPercentage
+    hindiPercentage, englishPercentage
   };
 };
 
-// Language code to name mapping
-const LANGUAGE_NAMES = {
-  'en': 'English',
-  'hi': 'Hindi',
-  'es': 'Spanish',
-  'fr': 'French',
-  'de': 'German',
-  'zh': 'Chinese',
-  'ja': 'Japanese',
-  'ko': 'Korean',
-  'ar': 'Arabic',
-  'pt': 'Portuguese',
-  'ru': 'Russian',
-  'it': 'Italian',
-  'nl': 'Dutch',
-  'pl': 'Polish',
-  'tr': 'Turkish',
-  'vi': 'Vietnamese',
-  'th': 'Thai',
-  'id': 'Indonesian',
+/**
+ * Translate a single chunk using MyMemory API (free, fast, no auth)
+ * MyMemory limit: 500 chars per request, so we chunk accordingly
+ */
+const translateChunk = async (chunk, fromLang, toLang) => {
+  const langPair = `${fromLang}|${toLang}`;
+  const url = `${MYMEMORY_URL}?q=${encodeURIComponent(chunk)}&langpair=${langPair}`;
+
+  const response = await fetch(url, { method: 'GET' });
+  if (!response.ok) throw new Error(`MyMemory error: ${response.status}`);
+
+  const data = await response.json();
+
+  // responseStatus 200 = OK, 429 = quota exceeded
+  if (data.responseStatus === 429) {
+    throw new Error('MyMemory daily quota exceeded (5000 chars/day free). Try again tomorrow.');
+  }
+
+  const translated = data.responseData?.translatedText || chunk;
+
+  // MyMemory sometimes returns "MYMEMORY WARNING" when quota is low
+  if (translated.includes('MYMEMORY WARNING')) {
+    throw new Error('MyMemory quota exceeded for today.');
+  }
+
+  return translated;
 };
 
 /**
- * Translate text using Amazon Nova 2 Lite via OpenRouter
+ * Translate text using MyMemory API with chunking for long texts
  */
 export const translateText = async (text, options = {}) => {
-  const { fromLang = null, toLang = null, progressCallback = null, apiKey = NOVA_API_KEY } = options;
+  const { fromLang = null, toLang = null, progressCallback = null } = options;
 
-  if (!text || text.trim().length === 0) {
-    return text;
+  if (!text || text.trim().length === 0) return text;
+
+  // Auto-detect language if not specified
+  let sourceLang = fromLang;
+  let targetLang = toLang;
+  if (!sourceLang || !targetLang) {
+    const detected = detectLanguage(text);
+    sourceLang = detected.isHindi ? 'hi' : 'en';
+    targetLang = detected.isHindi ? 'en' : 'hi';
+  }
+
+  const fromLangName = LANGUAGE_NAMES[sourceLang] || sourceLang;
+  const toLangName = LANGUAGE_NAMES[targetLang] || targetLang;
+
+  if (progressCallback) {
+    progressCallback({ status: 'translating', progress: 10, message: `Translating to ${toLangName}...` });
   }
 
   try {
-    // Auto-detect language if not specified
-    let sourceLang = fromLang;
-    let targetLang = toLang;
+    // MyMemory: max 500 chars per request
+    const CHUNK_SIZE = 450;
+    const chunks = [];
+    // Split on sentence boundaries when possible
+    const sentences = text.match(/[^.!?\n]+[.!?\n]*/g) || [text];
+    let currentChunk = '';
 
-    if (!sourceLang || !targetLang) {
-      const detected = detectLanguage(text);
-      sourceLang = detected.isHindi ? 'hi' : 'en';
-      targetLang = detected.isHindi ? 'en' : 'hi';
-    }
-
-    const fromLangName = LANGUAGE_NAMES[sourceLang] || sourceLang;
-    const toLangName = LANGUAGE_NAMES[targetLang] || targetLang;
-
-    if (progressCallback) {
-      progressCallback({ status: 'translating', progress: 10, message: `Translating from ${fromLangName} to ${toLangName}...` });
-    }
-
-    // Create translation prompt for any language pair
-    const translationPrompt = `Translate the following ${fromLangName} text to ${toLangName}. Return ONLY the translated ${toLangName} text without any explanation, prefix, suffix, or additional text. Just return the translation:\n\n${text}`;
-
-    if (progressCallback) {
-      progressCallback({ status: 'translating', progress: 30, message: 'Sending translation request...' });
-    }
-
-    // Call OpenRouter API directly for translation
-    const response = await fetch(OPENROUTER_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : '',
-        'X-Title': 'Text Translator'
-      },
-      body: JSON.stringify({
-        model: 'amazon/nova-2-lite-v1',
-        messages: [
-          {
-            role: 'user',
-            content: translationPrompt
+    for (const sentence of sentences) {
+      if ((currentChunk + sentence).length > CHUNK_SIZE) {
+        if (currentChunk) chunks.push(currentChunk.trim());
+        // If single sentence > CHUNK_SIZE, split it hard
+        if (sentence.length > CHUNK_SIZE) {
+          for (let i = 0; i < sentence.length; i += CHUNK_SIZE) {
+            chunks.push(sentence.substring(i, i + CHUNK_SIZE));
           }
-        ],
-        max_tokens: 4096,
-        temperature: 0.3 // Lower temperature for more accurate translation
-      })
-    });
-
-    if (progressCallback) {
-      progressCallback({ status: 'processing', progress: 70, message: 'Processing translation...' });
+          currentChunk = '';
+        } else {
+          currentChunk = sentence;
+        }
+      } else {
+        currentChunk += sentence;
+      }
     }
+    if (currentChunk.trim()) chunks.push(currentChunk.trim());
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Translation failed: HTTP ${response.status}: ${errorText || 'Unknown error'}`);
+    const translatedChunks = [];
+    for (let i = 0; i < chunks.length; i++) {
+      if (progressCallback) {
+        const progress = 10 + Math.round((i / chunks.length) * 85);
+        progressCallback({ status: 'translating', progress, message: `Translating ${i + 1}/${chunks.length}...` });
+      }
+
+      const translated = await translateChunk(chunks[i], sourceLang, targetLang);
+      translatedChunks.push(translated);
+
+      // Small delay to avoid rate limiting
+      if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 200));
     }
-
-    const result = await response.json();
-
-    if (!result || !result.choices || result.choices.length === 0) {
-      throw new Error('Invalid response from translation service');
-    }
-
-    // Extract translated text
-    let translatedText = result.choices[0]?.message?.content || '';
-    
-    // Clean up the translated text
-    translatedText = translatedText.trim();
-    
-    // Remove common prefixes/suffixes
-    translatedText = translatedText.replace(/^(translated text|translation|hindi|english|the translation is):\s*/i, '');
-    translatedText = translatedText.replace(/^["']|["']$/g, ''); // Remove quotes
-    translatedText = translatedText.trim();
 
     if (progressCallback) {
       progressCallback({ status: 'complete', progress: 100, message: 'Translation complete!' });
     }
 
-    return translatedText;
+    return translatedChunks.join(' ');
 
   } catch (error) {
-    console.error('Translation error:', error);
-    throw error;
+    // Fallback to Ollama VPS if MyMemory fails
+    console.warn('MyMemory failed, trying Ollama VPS fallback:', error.message);
+    if (progressCallback) {
+      progressCallback({ status: 'translating', progress: 50, message: 'Using AI fallback...' });
+    }
+
+    try {
+      const res = await fetch(`${AI_SERVER}/ai/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.substring(0, 400), target_lang: LANGUAGE_NAMES[targetLang] || targetLang })
+      });
+      const data = await res.json();
+      if (progressCallback) progressCallback({ status: 'complete', progress: 100, message: 'Done!' });
+      return data.translated || text;
+    } catch (fallbackErr) {
+      console.error('All translation methods failed:', fallbackErr);
+      throw new Error(`Translation failed: ${error.message}`);
+    }
   }
 };
 
@@ -166,17 +169,10 @@ export const autoTranslate = async (text, progressCallback = null, targetLanguag
   }
 
   const detected = detectLanguage(text);
-  const isHindi = detected.isHindi;
-  
-  // Use provided target language or auto-detect
-  const fromLang = isHindi ? 'hi' : 'en';
-  const toLang = targetLanguage || (isHindi ? 'en' : 'hi');
+  const fromLang = detected.isHindi ? 'hi' : 'en';
+  const toLang = targetLanguage || (detected.isHindi ? 'en' : 'hi');
 
-  const translatedText = await translateText(text, {
-    fromLang,
-    toLang,
-    progressCallback
-  });
+  const translatedText = await translateText(text, { fromLang, toLang, progressCallback });
 
   return {
     translatedText,
