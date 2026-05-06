@@ -2,7 +2,7 @@
  * Local OCR Client - Uses python-backend (MinerU + PaddleOCR)
  */
 
-const LOCAL_SERVER_URL = 'http://localhost:5000/api';
+const LOCAL_SERVER_URL = `${import.meta.env.VITE_PYTHON_API || 'http://localhost:5000'}/api`;
 
 /**
  * Extract text from image using local PaddleOCR
