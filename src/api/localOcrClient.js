@@ -3,7 +3,11 @@
  * Falls back gracefully when server is unreachable or blocked (Mixed Content).
  */
 
-const LOCAL_SERVER_URL = `${import.meta.env.VITE_PYTHON_API || 'http://localhost:5000'}/api`;
+// Normalize the base URL: strip trailing slash or /api so it always ends cleanly
+const _rawBase = import.meta.env.VITE_PYTHON_API || 'http://localhost:5000';
+const _base = _rawBase.replace(/\/api\/?$/, '').replace(/\/$/, '');
+const LOCAL_SERVER_URL = `${_base}/api`;
+
 
 // How long to wait for the Python backend before giving up (ms)
 const FETCH_TIMEOUT_MS = 5000;

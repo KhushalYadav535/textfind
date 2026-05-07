@@ -1,129 +1,96 @@
-// Enhanced PDF processing with multiple fallback methods
-import Tesseract from 'tesseract.js';
+// Enhanced PDF processing using PDF.js for real text extraction
+import * as pdfjsLib from 'pdfjs-dist';
+
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+}
 
 /**
- * Enhanced PDF processing that tries multiple methods
+ * Real enhanced PDF processing using PDF.js text extraction layer.
+ * This is the primary fallback when the MinerU/Python backend is unavailable.
  */
 export const processPDFEnhanced = async (pdfFile, options = {}) => {
   const {
-    languages = ['eng', 'hin'], // Add Hindi support
     maxPages = 10,
     progressCallback = null
   } = options;
-  
-  try {
+
+  if (progressCallback) {
+    progressCallback({ status: 'analyzing', progress: 20, message: 'Loading PDF for text extraction...' });
+  }
+
+  const arrayBuffer = await pdfFile.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, verbosity: 0 }).promise;
+  const totalPages = Math.min(pdf.numPages, maxPages);
+
+  const pages = [];
+  let allText = '';
+
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
     if (progressCallback) {
-      progressCallback({ status: 'processing', message: 'Processing PDF with enhanced method...' });
+      const progress = 20 + Math.round((pageNum / totalPages) * 70);
+      progressCallback({
+        status: 'processing',
+        progress,
+        current: pageNum,
+        total: totalPages,
+        message: `Extracting text from page ${pageNum}/${totalPages}...`
+      });
     }
-    
-    // Method 1: Try to extract text directly from PDF (for text-based PDFs)
-    try {
-      const textResult = await extractTextFromPDF(pdfFile);
-      if (textResult && textResult.length > 10) {
-        return {
-          type: 'text_extraction',
-          analysis: {
-            isScanned: false,
-            hasText: true,
-            confidence: 90,
-            totalPages: 1,
-            pagesWithText: 1
-          },
-          pages: [{
-            pageNumber: 1,
-            text: textResult,
-            confidence: 90,
-            wordCount: textResult.split(/\s+/).length
-          }],
-          totalText: textResult,
-          totalConfidence: 90,
-          totalWords: textResult.split(/\s+/).length
-        };
+
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+
+    // Join text items preserving line breaks
+    let pageText = '';
+    let lastY = null;
+    for (const item of textContent.items) {
+      if ('str' in item) {
+        // Insert newline when Y position changes significantly (new line in PDF)
+        if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) {
+          pageText += '\n';
+        }
+        pageText += item.str;
+        if (item.hasEOL) pageText += '\n';
+        lastY = item.transform[5];
       }
-    } catch (error) {
-      console.log('Direct text extraction failed, trying other methods');
     }
-    
-    // Method 2: Create a simple processing result
-    if (progressCallback) {
-      progressCallback({ status: 'processing', message: 'Using enhanced processing method...' });
-    }
-    
-    const result = {
-      type: 'enhanced_processing',
-      analysis: {
-        isScanned: true,
-        hasText: false,
-        confidence: 0,
-        totalPages: 1,
-        pagesWithText: 0
-      },
-      pages: [{
-        pageNumber: 1,
-        text: `PDF Processing Successful! 🎉
 
-File Information:
-• Name: ${pdfFile.name}
-• Size: ${(pdfFile.size / 1024 / 1024).toFixed(2)} MB
-• Type: PDF Document
+    pageText = pageText.trim();
+    allText += (allText ? '\n\n' : '') + `## Page ${pageNum}\n\n${pageText}`;
 
-Processing Method: Enhanced PDF Processing
-Status: ✅ Successfully Processed
-
-Your PDF has been processed using our enhanced processing system. The application is working correctly and can handle PDF files.
-
-For scanned PDFs with images, you can get even better results by:
-1. Converting PDF pages to images (PNG/JPG)
-2. Uploading images individually for OCR processing
-3. Using our image upload feature for optimal text extraction
-
-The OCR engine is fully functional and ready to process your documents!`,
-        confidence: 95,
-        wordCount: 80
-      }],
-      totalText: `PDF Processing Successful! 🎉
-
-File Information:
-• Name: ${pdfFile.name}
-• Size: ${(pdfFile.size / 1024 / 1024).toFixed(2)} MB
-• Type: PDF Document
-
-Processing Method: Enhanced PDF Processing
-Status: ✅ Successfully Processed
-
-Your PDF has been processed using our enhanced processing system. The application is working correctly and can handle PDF files.
-
-For scanned PDFs with images, you can get even better results by:
-1. Converting PDF pages to images (PNG/JPG)
-2. Uploading images individually for OCR processing
-3. Using our image upload feature for optimal text extraction
-
-The OCR engine is fully functional and ready to process your documents!`,
-      totalConfidence: 95,
-      totalWords: 80
-    };
-    
-    if (progressCallback) {
-      progressCallback({ status: 'complete', message: 'Enhanced PDF processing completed!' });
-    }
-    
-    return result;
-    
-  } catch (error) {
-    console.error('Error in enhanced PDF processing:', error);
-    throw new Error(`Enhanced PDF processing failed: ${error.message}`);
+    pages.push({
+      pageNumber: pageNum,
+      text: pageText,
+      confidence: pageText.length > 0 ? 90 : 0,
+      wordCount: pageText.split(/\s+/).filter(w => w.length > 0).length
+    });
   }
-};
 
-/**
- * Try to extract text directly from PDF
- */
-const extractTextFromPDF = async (pdfFile) => {
-  try {
-    // This is a placeholder for direct text extraction
-    // In a real implementation, you would use a PDF text extraction library
-    return null; // Return null to trigger other methods
-  } catch (error) {
-    return null;
+  if (progressCallback) {
+    progressCallback({ status: 'complete', progress: 100, message: 'Text extraction complete!' });
   }
+
+  const totalWords = pages.reduce((sum, p) => sum + p.wordCount, 0);
+  const hasRealText = allText.replace(/## Page \d+/g, '').trim().length > 20;
+
+  // If PDF.js extracted no readable text, it's likely a scanned PDF (image-only)
+  if (!hasRealText) {
+    throw new Error('No readable text found in PDF — may be a scanned/image-only PDF');
+  }
+
+  return {
+    type: 'pdfjs_extracted',
+    analysis: {
+      isScanned: false,
+      hasText: true,
+      confidence: 90,
+      totalPages: pdf.numPages,
+      pagesWithText: pages.filter(p => p.wordCount > 0).length
+    },
+    pages,
+    totalText: allText,
+    totalConfidence: 90,
+    totalWords
+  };
 };
