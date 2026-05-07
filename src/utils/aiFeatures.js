@@ -3,7 +3,7 @@
  * Endpoints: /api/ai/summarize, /api/ai/qa, /api/ai/entities, /api/ai/improve, /api/ai/translate
  */
 
-const AI_SERVER = 'http://localhost:5000/api/ai';
+const AI_SERVER = `${import.meta.env.VITE_PYTHON_API || 'http://localhost:5000'}/api/ai`;
 
 // ─── Entity Extraction ────────────────────────────────────────────────────────
 export const extractEntities = async (text, options = {}) => {

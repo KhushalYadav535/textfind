@@ -7,7 +7,7 @@
 import { containsHindiText } from '../utils/hindiTextProcessor.js';
 
 const MYMEMORY_URL = 'https://api.mymemory.translated.net/get';
-const AI_SERVER = 'http://localhost:5000/api';
+const AI_SERVER = `${import.meta.env.VITE_PYTHON_API || 'http://localhost:5000'}/api`;
 
 // Language code to name mapping
 const LANGUAGE_NAMES = {

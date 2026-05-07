@@ -2,7 +2,7 @@
  * Document Summarizer — powered by Ollama VPS (Mistral) via local Flask server
  */
 
-const AI_SERVER = 'http://localhost:5000/api/ai';
+const AI_SERVER = `${import.meta.env.VITE_PYTHON_API || 'http://localhost:5000'}/api/ai`;
 
 // ─── Summarize Document ───────────────────────────────────────────────────────
 export const summarizeDocument = async (text, options = {}) => {

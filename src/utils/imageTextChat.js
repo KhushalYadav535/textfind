@@ -3,7 +3,7 @@
  * Image analysis via text: first extract text from image, then chat about it
  */
 
-const AI_SERVER = 'http://localhost:5000/api';
+const AI_SERVER = `${import.meta.env.VITE_PYTHON_API || 'http://localhost:5000'}/api`;
 
 const imageToBase64 = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();

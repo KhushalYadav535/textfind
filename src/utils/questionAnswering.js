@@ -2,7 +2,7 @@
  * Question Answering — powered by Groq (Llama 3.3 70B) via Flask /api/ai/qa
  */
 
-const AI_SERVER = 'http://localhost:5000/api';
+const AI_SERVER = `${import.meta.env.VITE_PYTHON_API || 'http://localhost:5000'}/api`;
 
 export const answerQuestion = async (documentText, question, options = {}) => {
   const { progressCallback = null } = options;

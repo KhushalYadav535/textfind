@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Send, Bot, User, Loader2, Shield, FileSearch, GitCompare, FileSpreadsheet, Sparkles, X, BookOpen, Zap, ListChecks, BarChart2, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const AI_SERVER = 'http://localhost:5000/api';
+const AI_SERVER = `${import.meta.env.VITE_PYTHON_API || 'http://localhost:5000'}/api`;
 
 // ─── Document Chat ────────────────────────────────────────────────────────────
 export function DocumentChat({ documentText, isOpen, onClose }) {
