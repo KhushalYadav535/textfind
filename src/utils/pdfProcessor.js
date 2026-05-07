@@ -259,15 +259,13 @@ export const processPDF = async (pdfFile, options = {}) => {
     apiKey = defaultApiKey
   } = options;
   
+  // Step 1: Try MinerU (Python backend)
   try {
     if (progressCallback) {
       progressCallback({ status: 'analyzing', message: 'Sending PDF to MinerU (layout-aware extraction)...' });
     }
     
-    // Process PDF directly using MinerU
     const result = await extractTextFromPDF(pdfFile, { progressCallback });
-    
-    // Analysis is now simple
     const analysis = await analyzePDFType(pdfFile);
     
     return {
@@ -283,28 +281,33 @@ export const processPDF = async (pdfFile, options = {}) => {
       totalConfidence: result.data.confidence,
       totalWords: result.data.text.trim().split(/\s+/).filter(w => w.length > 0).length
     };
-  } catch (error) {
-    console.error('Error processing PDF:', error);
-    
-    // If PDF.js fails, try enhanced processing first
-    if (error.message.includes('worker') || error.message.includes('Failed to fetch')) {
-      console.log('PDF.js worker failed, using enhanced processing');
-      try {
-        return await processPDFEnhanced(pdfFile, options);
-      } catch (enhancedError) {
-        console.log('Enhanced processing failed, using simple processing');
-        try {
-          return await processPDFSimple(pdfFile, options);
-        } catch (simpleError) {
-          console.log('Simple processing failed, using fallback');
-          return await processPDFFallback(pdfFile, options);
-        }
-      }
-    }
-    
-    throw new Error(`PDF processing failed: ${error.message}`);
+  } catch (mineruError) {
+    // MinerU unavailable (Mixed Content block, server down, timeout, etc.)
+    // Fall through to PDF.js-based processing chain
+    console.warn('MinerU unavailable, falling back to PDF.js pipeline:', mineruError.message);
   }
+
+  // Step 2: Try enhanced PDF.js processing
+  try {
+    console.log('Using enhanced PDF.js processing');
+    return await processPDFEnhanced(pdfFile, options);
+  } catch (enhancedError) {
+    console.warn('Enhanced processing failed, trying simple:', enhancedError.message);
+  }
+
+  // Step 3: Try simple PDF.js processing
+  try {
+    console.log('Using simple PDF.js processing');
+    return await processPDFSimple(pdfFile, options);
+  } catch (simpleError) {
+    console.warn('Simple processing failed, trying fallback:', simpleError.message);
+  }
+
+  // Step 4: Last-resort fallback
+  console.log('Using last-resort fallback processing');
+  return await processPDFFallback(pdfFile, options);
 };
+
 
 /**
  * Get processing tips based on PDF analysis

@@ -1,8 +1,22 @@
 /**
  * Local OCR Client - Uses python-backend (MinerU + PaddleOCR)
+ * Falls back gracefully when server is unreachable or blocked (Mixed Content).
  */
 
 const LOCAL_SERVER_URL = `${import.meta.env.VITE_PYTHON_API || 'http://localhost:5000'}/api`;
+
+// How long to wait for the Python backend before giving up (ms)
+const FETCH_TIMEOUT_MS = 5000;
+
+/**
+ * Fetch wrapper with timeout — prevents indefinite hangs when server is down/blocked.
+ */
+const fetchWithTimeout = (url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+};
 
 /**
  * Extract text from image using local PaddleOCR
@@ -21,7 +35,7 @@ export const extractTextFromImage = async (file, options = {}) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${LOCAL_SERVER_URL}/extract-image`, {
+    const response = await fetchWithTimeout(`${LOCAL_SERVER_URL}/extract-image`, {
       method: 'POST',
       body: formData,
     });
@@ -36,7 +50,7 @@ export const extractTextFromImage = async (file, options = {}) => {
     }
 
     const result = await response.json();
-    
+
     if (!result.success) {
       throw new Error(result.error || 'PaddleOCR processing failed');
     }
@@ -74,7 +88,7 @@ export const extractTextFromPDF = async (file, options = {}) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${LOCAL_SERVER_URL}/extract-pdf`, {
+    const response = await fetchWithTimeout(`${LOCAL_SERVER_URL}/extract-pdf`, {
       method: 'POST',
       body: formData,
     });
@@ -89,7 +103,7 @@ export const extractTextFromPDF = async (file, options = {}) => {
     }
 
     const result = await response.json();
-    
+
     if (!result.success) {
       throw new Error(result.error || 'MinerU processing failed');
     }
